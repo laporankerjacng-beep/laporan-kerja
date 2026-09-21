@@ -409,17 +409,34 @@ app.post('/api/superadmin/reset-sheet', async (req, res) => {
   }
 });
 
-// Mulai Pekerjaan Baru (Foto Mulai)
+// Mulai Pekerjaan Baru (Foto / Video Mulai)
 app.post('/api/tasks/start', (req, res) => {
   try {
-    const { workerId, workerName, taskName, notes, photoBase64, location } = req.body;
+    const { workerId, workerName, taskName, notes, photoBase64, videoBase64, location } = req.body;
     if (!workerName || !taskName) {
       return res.status(400).json({ error: 'Nama Pekerja dan Nama Pekerjaan wajib diisi!' });
     }
 
+    // Anti-duplicate guard: cegah submit ganda instan (< 3 detik) untuk pekerja & tugas yang sama
+    const existingTasks = db.getTasks();
+    const nowMs = Date.now();
+    const recentDuplicate = existingTasks.find(t => 
+      t.workerName.toLowerCase() === workerName.trim().toLowerCase() &&
+      t.taskName.toLowerCase() === taskName.trim().toLowerCase() &&
+      t.startTimestamp && (nowMs - t.startTimestamp < 4000)
+    );
+    if (recentDuplicate) {
+      console.log(`[Anti-Duplicate] Mengembalikan tugas yang baru saja dibuat untuk ${workerName}: ${recentDuplicate.id}`);
+      return res.json({ success: true, message: 'Pekerjaan sudah dibuat (anti-duplicate)', task: recentDuplicate });
+    }
+
     let startPhotoUrl = null;
+    let startVideoUrl = null;
     if (photoBase64) {
       startPhotoUrl = saveBase64ToFile(photoBase64, 'mulai');
+    }
+    if (videoBase64) {
+      startVideoUrl = saveBase64ToFile(videoBase64, 'video-mulai');
     }
 
     const now = new Date();
@@ -439,9 +456,11 @@ app.post('/api/tasks/start', (req, res) => {
       endTimestamp: null,
       durationMinutes: 0,
       startPhoto: startPhotoUrl,
+      startVideo: startVideoUrl,
       progressPhotos: [],
       finishPhoto: null,
-      videoUrl: null,
+      finishVideo: null,
+      videoUrl: startVideoUrl || null,
       location: location || null,
       status: 'in_progress',
       gdriveSynced: false,
@@ -468,6 +487,18 @@ app.post('/api/tasks/progress', (req, res) => {
       return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
     }
 
+    task.progressPhotos = task.progressPhotos || [];
+
+    // Anti-duplicate guard: cegah submit ganda instan (< 4 detik) pada tugas yang sama
+    const nowMs = Date.now();
+    if (task.progressPhotos.length > 0) {
+      const lastProg = task.progressPhotos[task.progressPhotos.length - 1];
+      if (lastProg.timestamp && (nowMs - lastProg.timestamp < 4000) && lastProg.note === (note || '')) {
+        console.log(`[Anti-Duplicate] Progress ganda dicegah untuk task ${taskId}`);
+        return res.json({ success: true, message: 'Progress sudah tercatat (anti-duplicate)', task });
+      }
+    }
+
     let photoUrl = null;
     let videoUrl = null;
 
@@ -482,7 +513,6 @@ app.post('/api/tasks/progress', (req, res) => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    task.progressPhotos = task.progressPhotos || [];
     task.progressPhotos.push({
       photoUrl: photoUrl || '',
       videoUrl: videoUrl || '',
@@ -498,10 +528,29 @@ app.post('/api/tasks/progress', (req, res) => {
   }
 });
 
-// Selesaikan Pekerjaan (Foto Selesai)
+// Hapus Salah Satu Foto / Video Progress (Solusi jika terunggah 2 kali)
+app.delete('/api/tasks/:id/progress/:index', (req, res) => {
+  try {
+    const task = db.getTaskById(req.params.id);
+    if (!task) return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
+
+    const idx = parseInt(req.params.index, 10);
+    if (!task.progressPhotos || isNaN(idx) || idx < 0 || idx >= task.progressPhotos.length) {
+      return res.status(400).json({ error: 'Item progress tidak ditemukan!' });
+    }
+
+    const removed = task.progressPhotos.splice(idx, 1);
+    db.saveTask(task);
+    res.json({ success: true, message: 'Foto/video progress berhasil dihapus!', task, removed: removed[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Selesaikan Pekerjaan (Foto / Video Selesai)
 app.post('/api/tasks/complete', (req, res) => {
   try {
-    const { taskId, photoBase64, finalNotes } = req.body;
+    const { taskId, photoBase64, videoBase64, finalNotes } = req.body;
     if (!taskId) {
       return res.status(400).json({ error: 'Task ID diperlukan!' });
     }
@@ -512,8 +561,14 @@ app.post('/api/tasks/complete', (req, res) => {
     }
 
     let finishPhotoUrl = null;
+    let finishVideoUrl = null;
     if (photoBase64) {
       finishPhotoUrl = saveBase64ToFile(photoBase64, 'selesai');
+    }
+    if (videoBase64) {
+      finishVideoUrl = saveBase64ToFile(videoBase64, 'video-selesai');
+      task.finishVideo = finishVideoUrl;
+      if (!task.videoUrl) task.videoUrl = finishVideoUrl;
     }
 
     const now = new Date();
@@ -527,7 +582,7 @@ app.post('/api/tasks/complete', (req, res) => {
     task.endTime = timeStr;
     task.endTimestamp = endMs;
     task.durationMinutes = durationMinutes;
-    task.finishPhoto = finishPhotoUrl;
+    if (finishPhotoUrl) task.finishPhoto = finishPhotoUrl;
     task.status = 'completed';
     if (finalNotes) {
       task.notes = task.notes ? `${task.notes} | ${finalNotes}` : finalNotes;

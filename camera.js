@@ -210,22 +210,47 @@ class CameraManager {
   }
 
   /**
+   * Deteksi format video yang didukung oleh browser/ponsel
+   */
+  getBestMimeType() {
+    const candidates = [
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4;codecs=avc1',
+      'video/mp4'
+    ];
+    for (const type of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return '';
+  }
+
+  /**
    * Rekam Video Singkat dari stream kamera
    */
-  startVideoRecording(onUpdateSeconds) {
+  startVideoRecording(onUpdateSeconds, onMaxDuration) {
     if (!this.stream) throw new Error('Kamera belum aktif!');
     this.recordedChunks = [];
     this.recordSeconds = 0;
+    this.onMaxDurationReached = onMaxDuration;
 
-    const options = { mimeType: 'video/webm;codecs=vp8' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      delete options.mimeType;
+    const mimeType = this.getBestMimeType();
+    const options = mimeType ? { mimeType } : {};
+    this.recordedMimeType = mimeType || 'video/webm';
+
+    try {
+      this.mediaRecorder = new MediaRecorder(this.stream, options);
+    } catch (e) {
+      console.warn('Gagal dengan opsi mimeType, mencoba default MediaRecorder:', e);
+      this.mediaRecorder = new MediaRecorder(this.stream);
+      this.recordedMimeType = this.mediaRecorder.mimeType || 'video/webm';
     }
 
-    this.mediaRecorder = new MediaRecorder(this.stream, options);
-
     this.mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
+      if (event.data && event.data.size > 0) {
         this.recordedChunks.push(event.data);
       }
     };
@@ -238,12 +263,14 @@ class CameraManager {
       if (onUpdateSeconds) onUpdateSeconds(this.recordSeconds);
       // Batasi maksimal 30 detik agar ringan di hp
       if (this.recordSeconds >= 30) {
-        this.stopVideoRecording();
+        if (this.onMaxDurationReached) {
+          this.onMaxDurationReached();
+        }
       }
     }, 1000);
   }
 
-  stopVideoRecording() {
+  stopVideoRecording(meta = {}) {
     return new Promise((resolve) => {
       if (!this.mediaRecorder || !this.isRecording) {
         resolve(null);
@@ -253,20 +280,36 @@ class CameraManager {
       clearInterval(this.recordTimer);
       this.isRecording = false;
 
+      // Ambil frame cuplikan foto ber-watermark untuk thumbnail video
+      let thumbnailBase64 = null;
+      try {
+        thumbnailBase64 = this.capturePhotoWithWatermark(meta);
+      } catch (e) {
+        console.warn('Gagal mengambil thumbnail video:', e);
+      }
+
       this.mediaRecorder.onstop = () => {
-        const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+        const mime = this.recordedMimeType || 'video/webm';
+        const blob = new Blob(this.recordedChunks, { type: mime });
         const reader = new FileReader();
         reader.onloadend = () => {
           resolve({
             dataUrl: reader.result,
             blob: blob,
-            duration: this.recordSeconds
+            mimeType: mime,
+            duration: this.recordSeconds,
+            thumbnailBase64: thumbnailBase64
           });
         };
         reader.readAsDataURL(blob);
       };
 
-      this.mediaRecorder.stop();
+      try {
+        this.mediaRecorder.stop();
+      } catch (err) {
+        console.warn('Error saat stop mediaRecorder:', err);
+        resolve(null);
+      }
     });
   }
 }

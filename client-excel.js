@@ -49,15 +49,15 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
     });
 
     // 1. Header Judul Laporan
-    worksheet.mergeCells('A1:K1');
+    worksheet.mergeCells('A1:L1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = companyName.toUpperCase();
     titleCell.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 30;
+    worksheet.getRow(1).height = 32;
 
-    worksheet.mergeCells('A2:K2');
+    worksheet.mergeCells('A2:L2');
     const subCell = worksheet.getCell('A2');
     subCell.value = isIndividual 
       ? `LAPORAN KERJA INDIVIDU: ${sheetTitle.toUpperCase()}  |  Tanggal: ${currentDateStr}`
@@ -65,13 +65,13 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
     subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FFFFFFFF' } };
     subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
     subCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(2).height = 22;
+    worksheet.getRow(2).height = 24;
 
     worksheet.getRow(3).height = 8;
 
     // 2. Kolom Header
     const headerRow = worksheet.getRow(4);
-    headerRow.height = 26;
+    headerRow.height = 28;
 
     const cols = [
       { header: 'NO', width: 6 },
@@ -80,10 +80,11 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       { header: 'JAM MULAI', width: 12 },
       { header: 'JAM SELESAI', width: 12 },
       { header: 'DURASI', width: 14 },
-      { header: 'AKTIVITAS / CATATAN KERJA', width: 34 },
-      { header: 'FOTO MULAI', width: 24 },
-      { header: 'FOTO PROGRESS', width: 24 },
-      { header: 'FOTO SELESAI', width: 24 },
+      { header: 'AKTIVITAS / CATATAN KERJA', width: 32 },
+      { header: 'FOTO MULAI (BESAR)', width: 38 },
+      { header: 'FOTO PROGRESS (BESAR)', width: 38 },
+      { header: 'FOTO SELESAI (BESAR)', width: 38 },
+      { header: 'BUKTI VIDEO', width: 26 },
       { header: 'STATUS', width: 14 }
     ];
 
@@ -104,7 +105,7 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
     for (let i = 0; i < sheetTasks.length; i++) {
       const task = sheetTasks[i];
       const row = worksheet.getRow(rowNum);
-      row.height = 95; // Ruang lapang untuk foto
+      row.height = 210; // Ruang lapang & besar untuk foto
 
       const isEven = i % 2 === 0;
       const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
@@ -134,9 +135,10 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       row.getCell(8).value = '';
       row.getCell(9).value = '';
       row.getCell(10).value = '';
-      row.getCell(11).value = task.status === 'completed' ? 'SELESAI' : 'PROSES';
+      row.getCell(11).value = '';
+      row.getCell(12).value = task.status === 'completed' ? 'SELESAI' : 'PROSES';
 
-      for (let c = 1; c <= 11; c++) {
+      for (let c = 1; c <= 12; c++) {
         const cell = row.getCell(c);
         cell.font = { name: 'Calibri', size: 10 };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
@@ -150,7 +152,7 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       }
 
       // Status style
-      const stCell = row.getCell(11);
+      const stCell = row.getCell(12);
       const isDone = task.status === 'completed';
       stCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: isDone ? 'FF15803D' : 'FFB45309' } };
       stCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDone ? 'FFDCFCE7' : 'FFFEF3C7' } };
@@ -204,6 +206,22 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       } else {
         row.getCell(10).value = isDone ? '[Tidak ada foto]' : '[Belum Selesai]';
         row.getCell(10).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
+      }
+
+      // Bukti Video (Kolom 11)
+      const videoLink = task.videoUrl || 
+        (task.progressPhotos && task.progressPhotos.find(p => p.videoUrl)?.videoUrl) || 
+        task.finishVideo || task.startVideo;
+
+      if (videoLink) {
+        row.getCell(11).value = {
+          text: '▶️ BUKA / PUTAR VIDEO',
+          hyperlink: videoLink
+        };
+        row.getCell(11).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2563EB' }, underline: true };
+      } else {
+        row.getCell(11).value = '-';
+        row.getCell(11).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
       }
 
       rowNum++;

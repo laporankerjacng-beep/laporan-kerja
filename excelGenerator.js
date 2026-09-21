@@ -68,7 +68,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
     });
 
     // 1. Judul Header Atas
-    worksheet.mergeCells('A1:K1');
+    worksheet.mergeCells('A1:L1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = `${companyName.toUpperCase()}`;
     titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -78,10 +78,10 @@ async function generateDailyExcelReport(tasks, options = {}) {
       fgColor: { argb: 'FF0F172A' } // Slate 900
     };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 32;
+    worksheet.getRow(1).height = 34;
 
     // Subtitle
-    worksheet.mergeCells('A2:K2');
+    worksheet.mergeCells('A2:L2');
     const subCell = worksheet.getCell('A2');
     subCell.value = isIndividual 
       ? `LAPORAN KERJA INDIVIDU: ${sheetTitle.toUpperCase()}  |  Tanggal: ${currentDateStr}`
@@ -93,14 +93,14 @@ async function generateDailyExcelReport(tasks, options = {}) {
       fgColor: { argb: 'FF1E293B' } // Slate 800
     };
     subCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(2).height = 24;
+    worksheet.getRow(2).height = 26;
 
     // Baris kosong
     worksheet.getRow(3).height = 10;
 
     // 2. Definisi Kolom Tabel (Header)
     const headerRow = worksheet.getRow(4);
-    headerRow.height = 28;
+    headerRow.height = 30;
 
     const columnsConfig = [
       { key: 'no', header: 'NO', width: 6 },
@@ -108,11 +108,12 @@ async function generateDailyExcelReport(tasks, options = {}) {
       { key: 'workerName', header: 'NAMA PEKERJA', width: 20 },
       { key: 'startTime', header: 'JAM MULAI', width: 12 },
       { key: 'endTime', header: 'JAM SELESAI', width: 12 },
-      { key: 'duration', header: 'TOTAL DURASI', width: 14 },
-      { key: 'notes', header: 'AKTIVITAS / CATATAN KERJA', width: 34 },
-      { key: 'startPhoto', header: 'FOTO MULAI (AWAL)', width: 24 },
-      { key: 'progressPhoto', header: 'FOTO PROGRESS', width: 24 },
-      { key: 'finishPhoto', header: 'FOTO SELESAI (HASIL)', width: 24 },
+      { key: 'duration', header: 'DURASI', width: 14 },
+      { key: 'notes', header: 'AKTIVITAS / CATATAN KERJA', width: 32 },
+      { key: 'startPhoto', header: 'FOTO MULAI (BESAR)', width: 38 },
+      { key: 'progressPhoto', header: 'FOTO PROGRESS (BESAR)', width: 38 },
+      { key: 'finishPhoto', header: 'FOTO SELESAI (BESAR)', width: 38 },
+      { key: 'videoUrl', header: 'BUKTI VIDEO', width: 26 },
       { key: 'status', header: 'STATUS', width: 14 }
     ];
 
@@ -139,7 +140,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
     let currentRowNum = 5;
 
     if (sheetTasks.length === 0) {
-      worksheet.mergeCells(`A${currentRowNum}:K${currentRowNum}`);
+      worksheet.mergeCells(`A${currentRowNum}:L${currentRowNum}`);
       const emptyCell = worksheet.getCell(`A${currentRowNum}`);
       emptyCell.value = 'Belum ada data pekerjaan pada tanggal / filter ini.';
       emptyCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -150,7 +151,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
 
     sheetTasks.forEach((task, index) => {
       const row = worksheet.getRow(currentRowNum);
-      row.height = 100; // Tinggi baris luas agar foto tertanam tampil besar & jelas
+      row.height = 210; // Tinggi baris luas & besar agar foto tertanam tampil tajam, besar & jelas
 
       const isEven = index % 2 === 0;
       const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
@@ -184,13 +185,14 @@ async function generateDailyExcelReport(tasks, options = {}) {
       row.getCell(5).value = task.endTime || '-';
       row.getCell(6).value = durationStr;
       row.getCell(7).value = activityText;
-      row.getCell(8).value = ''; // Akan diisi gambar
-      row.getCell(9).value = ''; // Akan diisi gambar
-      row.getCell(10).value = ''; // Akan diisi gambar
-      row.getCell(11).value = statusText;
+      row.getCell(8).value = ''; // Foto Mulai (Gambar)
+      row.getCell(9).value = ''; // Foto Progress (Gambar)
+      row.getCell(10).value = ''; // Foto Selesai (Gambar)
+      row.getCell(11).value = ''; // Video Bukti
+      row.getCell(12).value = statusText;
 
       // Styling setiap cell
-      for (let c = 1; c <= 11; c++) {
+      for (let c = 1; c <= 12; c++) {
         const cell = row.getCell(c);
         cell.font = { name: 'Calibri', size: 10 };
         cell.fill = {
@@ -213,7 +215,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
       }
 
       // Status styling
-      const statusCell = row.getCell(11);
+      const statusCell = row.getCell(12);
       statusCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: isCompleted ? 'FF15803D' : 'FFB45309' } };
       statusCell.fill = {
         type: 'pattern',
@@ -221,7 +223,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
         fgColor: { argb: isCompleted ? 'FFDCFCE7' : 'FFFEF3C7' }
       };
 
-      // 4. SEMATKAN GAMBAR ASLI LANGSUNG DI DALAM KOTAK SEL!
+      // 4. SEMATKAN GAMBAR ASLI LANGSUNG DI DALAM KOTAK SEL BESAR!
       // Foto Mulai -> Kolom 8 (H)
       const hasStart = tryAddImageToCell(worksheet, task.startPhoto, 8, currentRowNum);
       if (!hasStart) {
@@ -245,6 +247,22 @@ async function generateDailyExcelReport(tasks, options = {}) {
       if (!hasFinish) {
         row.getCell(10).value = isCompleted ? '[Foto Selesai tidak ada]' : '[Belum Selesai]';
         row.getCell(10).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
+      }
+
+      // Bukti Video -> Kolom 11 (K)
+      const videoLink = task.videoUrl || 
+        (task.progressPhotos && task.progressPhotos.find(p => p.videoUrl)?.videoUrl) || 
+        task.finishVideo || task.startVideo;
+
+      if (videoLink) {
+        row.getCell(11).value = {
+          text: '▶️ BUKA / PUTAR VIDEO',
+          hyperlink: videoLink
+        };
+        row.getCell(11).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2563EB' }, underline: true };
+      } else {
+        row.getCell(11).value = '-';
+        row.getCell(11).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
       }
 
       currentRowNum++;
