@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="description" content="Sistem Informasi Pelaporan Kerja Lapangan Terpadu" />
+  <title>Sistem Laporan Kerja Lapangan</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- ExcelJS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- HEADER RESMI -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-brand">
+        <div class="logo-icon">📁</div>
+        <div class="logo-text">
+          <h1>Sistem Laporan Kerja Lapangan</h1>
+          <span id="liveHeaderClock">Memuat waktu...</span>
+        </div>
+      </div>
+
+      <!-- Informasi Pengguna Login -->
+      <div class="user-badge-group" id="headerUserBadge" style="display: none;">
+        <div class="user-pill">
+          <span id="headerUserName">Nama Pengguna</span>
+          <span class="user-role-badge" id="headerUserRole">Pekerja</span>
+        </div>
+        <button class="btn-logout" id="btnLogout" title="Keluar">Keluar</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- KONTEN UTAMA -->
+  <main class="main-content">
+
+    <!-- ==========================================
+         BAGIAN 1: FORM LOGIN (ADMIN ONLY REGISTRATION)
+         ========================================== -->
+    <section class="auth-wrapper" id="authSection">
+      <div class="auth-card">
+        <h2>Masuk Sistem</h2>
+        <p class="subtitle">Sistem dokumentasi dan rekapitulasi pekerjaan operasional lapangan.</p>
+
+        <!-- Form Login -->
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="loginUsername">Username / ID Karyawan</label>
+            <input type="text" id="loginUsername" class="form-input" placeholder="Masukkan username" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Kata Sandi</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="loginPassword" class="form-input" placeholder="Masukkan kata sandi" required autocomplete="current-password" />
+              <button type="button" class="btn-toggle-pw" id="btnToggleLoginPw" title="Lihat/Sembunyikan Kata Sandi">
+                👁️
+              </button>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" id="btnSubmitLogin" style="margin-top: 1.25rem;">
+            Masuk ke Sistem
+          </button>
+
+
+          <p style="margin-top: 1rem; font-size: 0.78rem; color: var(--text-dim); text-align: center;">
+            Lupa sandi? Hubungi Admin / PIC untuk reset kata sandi Anda.
+          </p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         BAGIAN 2: TAMPILAN OPERASIONAL PEKERJA (HP)
+         ========================================== -->
+    <section class="worker-view" id="workerViewSection" style="display: none;">
+      
+      <!-- Kartu Status Pekerjaan Aktif -->
+      <div class="active-task-hero" id="activeTaskHero">
+        
+        <!-- Jika Tidak Ada Pekerjaan Aktif -->
+        <div id="noTaskPrompt">
+          <div style="font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 0.35rem;">
+            Formulir Tugas Baru
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Mulai Pekerjaan Baru</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            Ketik aktivitas atau pekerjaan yang akan Anda lakukan, lalu ambil foto mulai pengerjaan.
+          </p>
+
+          <div class="form-group">
+            <label for="newTaskNameInput">Aktivitas / Pekerjaan yang Dilakukan:</label>
+            <input type="text" id="newTaskNameInput" class="form-input" placeholder="contoh: Lagi membersihkan ruangan lantai 2, lagi memperbaiki kursi..." />
+          </div>
+
+          <div class="form-group">
+            <label for="newTaskNoteInput">Keterangan Tambahan (Opsional):</label>
+            <input type="text" id="newTaskNoteInput" class="form-input" placeholder="Rincian bagian kerja atau nomor unit..." />
+          </div>
+
+          <button class="btn-start-hero" id="btnStartNewTask">
+            Ambil Foto Mulai Pekerjaan
+          </button>
+        </div>
+
+        <!-- Jika Sedang Ada Pekerjaan yang Berjalan -->
+        <div id="activeTaskDetails" style="display: none;">
+          <div class="task-status-indicator">
+            <span class="pulse-dot"></span>
+            PEKERJAAN SEDANG BERJALAN
+          </div>
+          <div class="timer-display" id="activeTaskTimer">00:00:00</div>
+          <div class="task-title-active" id="activeTaskTitle">Nama Pekerjaan</div>
+          <div class="task-notes-active" id="activeTaskNotes">Keterangan...</div>
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1.25rem;" id="activeTaskStartTime">
+            Mulai: --:--:--
+          </div>
+
+          <!-- Tombol Progress & Selesai -->
+          <div class="worker-actions-grid">
+            <button class="btn-field-action btn-field-progress" id="btnProgressAction">
+              <span class="action-icon">📷</span>
+              <span>Tambah Foto Progress</span>
+            </button>
+            <button class="btn-field-action btn-field-finish" id="btnFinishAction">
+              <span class="action-icon">✓</span>
+              <span>Pekerjaan Selesai</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Riwayat Kerja Hari Ini -->
+      <div class="history-section">
+        <div class="section-header">
+          <h3>Riwayat Kerja Hari Ini</h3>
+          <span style="font-size: 0.8rem; color: var(--text-dim);" id="todayHistoryCount"></span>
+        </div>
+        <div id="workerHistoryList">
+          <!-- Riwayat dimuat dinamis -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==========================================
+         BAGIAN 3: DASHBOARD PIC / SUPERVISOR (LAPTOP/TABLET)
+         ========================================== -->
+    <section class="admin-view" id="adminViewSection" style="display: none;">
+      
+      <!-- Kartu Ringkasan -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">📋</div>
+          <div class="stat-info">
+            <h4>Total Pekerjaan</h4>
+            <div class="stat-value" id="metricTotalTasks">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">⏳</div>
+          <div class="stat-info">
+            <h4>Pekerja Aktif</h4>
+            <div class="stat-value" id="metricActiveTasks">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✓</div>
+          <div class="stat-info">
+            <h4>Pekerjaan Selesai</h4>
+            <div class="stat-value" id="metricCompletedTasks">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple">⏱️</div>
+          <div class="stat-info">
+            <h4>Total Jam Kerja</h4>
+            <div class="stat-value" id="metricTotalHours">0 Jam</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar Filter & Unduh Excel (Siklus 01:00 s/d 01:00) -->
+      <div class="dashboard-toolbar">
+        <div class="filters-group">
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px; font-weight:600;">Filter Pekerja:</label>
+            <select id="filterWorkerSelect" class="form-select" style="min-width: 170px;">
+              <option value="all">-- Semua Pekerja --</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px; font-weight:600;">Status:</label>
+            <select id="filterStatusSelect" class="form-select" style="min-width: 130px;">
+              <option value="all">Semua Status</option>
+              <option value="in_progress">Sedang Berjalan</option>
+              <option value="completed">Selesai</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px; font-weight:600;">
+              Tanggal Laporan (01:00 - 01:00):
+            </label>
+            <input type="date" id="filterDateInput" class="form-input" style="padding: 0.55rem 0.8rem;" />
+          </div>
+        </div>
+
+        <div class="export-group">
+          <!-- Tombol Export Excel dengan Foto Tertanam -->
+          <button class="btn-export-excel" id="btnExportExcel" title="Download Excel dengan foto langsung di dalam sel (01:00 s/d 01:00)">
+            <span>📥 Unduh Laporan Excel (.xlsx)</span>
+          </button>
+          
+          <button class="btn-settings" id="btnOpenWorkerManager" title="Kelola Akun & Kata Sandi Karyawan">
+            <span>👥 Kelola Karyawan</span>
+          </button>
+
+          <button class="btn-settings" id="btnOpenSettings" title="Pengaturan Integrasi Cloud">
+            <span>⚙️ Cloud</span>
+          </button>
+
+          <!-- Tombol Khusus Super Admin (Hanya tampil jika login sebagai superadmin) -->
+          <button class="btn-settings btn-superadmin" id="btnOpenSuperAdmin" style="display: none;" title="Panel Kontrol Super Admin">
+            <span>👑 Panel Super Admin</span>
+          </button>
+        </div>
+      </div>
+
+      <div style="font-size: 0.78rem; color: var(--text-dim); padding: 0 4px; display: flex; align-items: center; gap: 6px;">
+        <span>🕒</span>
+        <span><strong>Siklus Rekap Harian:</strong> Dari pukul 01:00 Pagi s/d 01:00 Pagi hari berikutnya. File unduhan harian tidak akan tumpang tindih.</span>
+      </div>
+
+      <!-- Tabel Rekapitulasi -->
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">No</th>
+              <th>Nama Pekerja</th>
+              <th>Tanggal</th>
+              <th>Jam Mulai - Selesai</th>
+              <th>Durasi</th>
+              <th>Aktivitas & Catatan</th>
+              <th style="text-align: center;">Foto Mulai</th>
+              <th style="text-align: center;">Foto Progress</th>
+              <th style="text-align: center;">Foto Selesai</th>
+              <th style="text-align: center; width: 110px;">Status & Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="adminTasksTableBody">
+            <!-- Isi tabel dimuat dinamis -->
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       MODAL KELOLA AKUN KARYAWAN (ADMIN ONLY)
+       ========================================== -->
+  <div class="modal-backdrop" id="workerManagerModal" style="display: none;">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+        <h3 style="margin: 0;">👥 Kelola Akun & Kata Sandi Karyawan</h3>
+        <button type="button" class="btn-close-camera" id="btnCloseWorkerManager" style="background:#f1f5f9; color:#0f172a; width:32px; height:32px;">✕</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+        Hanya Admin yang dapat membuat dan mengubah akun karyawan untuk mencegah lupa sandi atau salah input.
+      </p>
+
+      <!-- Formulir Tambah Karyawan Baru -->
+      <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.1rem; margin-bottom: 1.5rem;">
+        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main);">+ Tambah Karyawan Baru</h4>
+        <form id="createWorkerForm">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <label>Nama Lengkap:</label>
+              <input type="text" id="newWorkerFullName" class="form-input" placeholder="contoh: Abang Liston" required />
+            </div>
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <label>Username Login:</label>
+              <input type="text" id="newWorkerUsername" class="form-input" placeholder="contoh: liston" required />
+            </div>
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <label>Kata Sandi:</label>
+              <div class="password-input-wrapper">
+                <input type="password" id="newWorkerPassword" class="form-input" placeholder="Minimal 5 karakter" required />
+                <button type="button" class="btn-toggle-pw" id="btnToggleNewWorkerPw">👁️</button>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <label>No. HP / WhatsApp:</label>
+              <input type="tel" id="newWorkerPhone" class="form-input" placeholder="08xxxxxxxxxx" />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" style="margin-top: 0.75rem; padding: 0.65rem 1rem; width: auto; font-size: 0.88rem;">
+            + Daftarkan Karyawan
+          </button>
+        </form>
+      </div>
+
+      <!-- Tabel Daftar Karyawan -->
+      <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">Daftar Karyawan Terdaftar:</h4>
+      <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+        <table class="data-table" style="font-size: 0.82rem;">
+          <thead>
+            <tr>
+              <th>Nama Karyawan</th>
+              <th>Username</th>
+              <th>No. WhatsApp</th>
+              <th style="text-align: center;">Tindakan</th>
+            </tr>
+          </thead>
+          <tbody id="workerManagerTableBody">
+            <!-- Dimuat dinamis -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL RESET PASSWORD KARYAWAN
+       ========================================== -->
+  <div class="modal-backdrop" id="resetPasswordModal" style="display: none; z-index: 6000;">
+    <div class="modal-dialog" style="max-width: 400px;">
+      <h3>Ubah Kata Sandi Karyawan</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;" id="resetPwWorkerName">
+        Karyawan: -
+      </p>
+      <form id="resetPasswordForm">
+        <input type="hidden" id="resetPwUserId" />
+        <div class="form-group">
+          <label>Kata Sandi Baru:</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="resetPwInput" class="form-input" placeholder="Minimal 5 karakter" required />
+            <button type="button" class="btn-toggle-pw" id="btnToggleResetPw">👁️</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+          <button type="button" class="btn-secondary" id="btnCancelResetPw">Batal</button>
+          <button type="submit" class="btn-primary" style="flex: 2;">Simpan Sandi Baru</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL KONTROL SUPER ADMIN (KENDALI PENUH)
+       ========================================== -->
+  <div class="modal-backdrop" id="superAdminModal" style="display: none; z-index: 5500;">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.5rem;">👑</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; color: var(--text-main);">Panel Kontrol Super Administrator</h3>
+            <span style="font-size: 0.78rem; color: #7c3aed; font-weight: 700;">Akses Tertinggi • Kendali Penuh Sistem</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-camera" id="btnCloseSuperAdmin" style="background:#f1f5f9; color:#0f172a; width:32px; height:32px;">✕</button>
+      </div>
+
+      <!-- KARTU 1: GANTI KATA SANDI ADMIN UTAMA -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+          <h4 style="font-size: 0.92rem; font-weight: 700; color: #1e293b; margin: 0;">🔑 Ganti Kata Sandi Akun Admin</h4>
+          <span style="font-size: 0.72rem; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">Akun: admin</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+          Ubah kata sandi akun Admin / PIC utama (akun default: <code>admin</code> / <code>amazon9972</code>).
+        </p>
+        <form id="formSuperAdminChangeAdminPw" style="display: flex; gap: 0.5rem; align-items: center;">
+          <div class="password-input-wrapper" style="flex: 1;">
+            <input type="password" id="superAdminNewAdminPw" class="form-input" placeholder="Masukkan kata sandi baru admin (min 5 karakter)" required />
+            <button type="button" class="btn-toggle-pw" id="btnToggleSuperAdminAdminPw">👁️</button>
+          </div>
+          <button type="submit" class="btn-primary" style="white-space: nowrap; padding: 0.6rem 1rem; font-size: 0.85rem;">
+            Simpan Sandi Admin
+          </button>
+        </form>
+      </div>
+
+      <!-- KARTU 2: ZONA DUA TOMBOL RESET SISTEM -->
+      <div style="border: 1px solid #fecaca; background: #fff5f5; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        <h4 style="font-size: 0.92rem; font-weight: 700; color: #b91c1c; margin: 0 0 0.35rem 0;">⚠️ Dua Tombol Reset Sistem (Aksi Kritis)</h4>
+        <p style="font-size: 0.78rem; color: #7f1d1d; margin-bottom: 0.85rem;">
+          Fitur ini khusus Superadmin untuk merapikan dan me-reset sistem saat memulai operasional baru.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <!-- Reset 1: Reset Total Data Server -->
+          <div style="background: #ffffff; border: 1px solid #fca5a5; border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-weight: 700; color: #b91c1c; font-size: 0.88rem; margin-bottom: 4px;">1. 🔴 Reset Total (Server)</div>
+              <p style="font-size: 0.76rem; color: #64748b; margin-bottom: 0.75rem; line-height: 1.4;">
+                Menghapus <strong>semua riwayat pekerjaan</strong> dan <strong>seluruh foto</strong> di server lokal. Database bersih total seperti baru.
+              </p>
+            </div>
+            <button type="button" id="btnTriggerResetTotal" style="background: #dc2626; color: #fff; border: none; padding: 0.6rem 0.75rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: background 0.2s;">
+              🗑️ Eksekusi Reset Total
+            </button>
+          </div>
+
+          <!-- Reset 2: Reset Google Sheets Cloud -->
+          <div style="background: #ffffff; border: 1px solid #86efac; border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-weight: 700; color: #15803d; font-size: 0.88rem; margin-bottom: 4px;">2. 📊 Reset Sheet (Google)</div>
+              <p style="font-size: 0.76rem; color: #64748b; margin-bottom: 0.75rem; line-height: 1.4;">
+                Mengosongkan <strong>seluruh baris data</strong> pada Google Spreadsheet kantor via Apps Script. Header tabel tetap aman.
+              </p>
+            </div>
+            <button type="button" id="btnTriggerResetSheet" style="background: #16a34a; color: #fff; border: none; padding: 0.6rem 0.75rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: background 0.2s;">
+              🔄 Eksekusi Reset Sheet
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KARTU 3: KONTROL SEMUA USER (TERMASUK ADMIN) -->
+      <div>
+        <h4 style="font-size: 0.92rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">👥 Seluruh Akun Pengguna</h4>
+        <div class="table-container" style="max-height: 180px; overflow-y: auto;">
+          <table class="data-table" style="font-size: 0.8rem;">
+            <thead>
+              <tr>
+                <th>Nama Lengkap</th>
+                <th>Username</th>
+                <th>Peran</th>
+                <th>No. HP</th>
+                <th style="text-align: center;">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="superAdminUsersTableBody">
+              <!-- Dimuat dinamis -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL KAMERA KHUSUS (TIDAK BISA AKSES GALERI)
+       ========================================== -->
+  <div class="camera-overlay-modal" id="cameraOverlayModal" style="display: none;">
+    <div class="camera-header">
+      <div class="camera-stage-badge" id="cameraStageBadge">MULAI PEKERJAAN</div>
+      <button class="btn-close-camera" id="btnCloseCamera" title="Tutup Kamera">✕</button>
+    </div>
+
+    <div class="camera-viewfinder-box">
+      <!-- Live Video Feed Kamera -->
+      <video id="cameraLiveVideo" autoplay playsinline muted></video>
+
+      <!-- Petunjuk Watermark -->
+      <div class="camera-watermark-guide">
+        <div class="live-clock" id="cameraLiveClock">--:--:-- WIB</div>
+        <div>Waktu, Nama Pekerja & Koordinat GPS dicap otomatis pada foto.</div>
+      </div>
+    </div>
+
+    <div class="camera-controls-bottom">
+      <!-- Pesan wajib isi keterangan -->
+      <div id="cameraRequiredNote" style="
+        background: rgba(234,179,8,0.15);
+        border: 1px solid rgba(234,179,8,0.5);
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+        color: #fef08a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+      ">
+        <span style="font-size: 1rem;">⚠️</span>
+        <span>Wajib isi <strong>keterangan</strong> sebelum bisa ambil foto / rekam video.</span>
+      </div>
+      <input
+        type="text"
+        id="cameraNoteInput"
+        class="camera-note-input"
+        placeholder="✏️ Tulis keterangan pekerjaan... (wajib diisi)"
+        style="border: 2px solid rgba(234,179,8,0.7);"
+      />
+      <div class="camera-shutter-row">
+        <button class="btn-record-video" id="btnRecordVideo" type="button" disabled style="opacity:0.4;">
+          Rekam Video
+        </button>
+        <button class="btn-snap-photo" id="btnSnapPhoto" type="button" title="Isi keterangan dulu" disabled style="opacity:0.4;"></button>
+        <div style="width: 80px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL PRATINJAU FOTO SETELAH DIAMBIL
+       ========================================== -->
+  <div class="preview-modal" id="previewModal" style="display: none;">
+    <div class="preview-content">
+      <div class="preview-image-box">
+        <img id="previewPhotoImg" src="" alt="Pratinjau Foto" />
+      </div>
+      <div class="preview-actions">
+        <button class="btn-secondary" id="btnRetakePhoto">Ambil Ulang</button>
+        <button class="btn-primary" id="btnConfirmPhoto" style="flex: 2;">Gunakan Foto Ini</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL PENGATURAN GOOGLE DRIVE & SHEETS
+       ========================================== -->
+  <div class="modal-backdrop" id="settingsModal" style="display: none;">
+    <div class="modal-dialog">
+      <h3>Pengaturan Sinkronisasi Cloud</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Konfigurasi integrasi dengan Google Spreadsheet & Google Drive kantor.
+      </p>
+
+      <form id="settingsForm">
+        <div class="form-group">
+          <label for="settingCompanyName">Nama Perusahaan / Unit Kerja</label>
+          <input type="text" id="settingCompanyName" class="form-input" placeholder="contoh: PT. Nama Kantor" />
+        </div>
+
+        <div class="form-group">
+          <label for="settingGasUrl">URL Webhook Google Apps Script</label>
+          <input type="url" id="settingGasUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" />
+          <span style="font-size:0.75rem; color:var(--text-dim); display:block; margin-top:3px;">
+            Dapatkan URL ini dari deployment Google Apps Script di Google Sheets.
+          </span>
+        </div>
+
+        <div class="guide-box">
+          <strong>Panduan Pemasangan Google Spreadsheet:</strong>
+          <ol>
+            <li>Buka spreadsheet baru di Google Sheets.</li>
+            <li>Buka menu <strong>Ekstensi &gt; Apps Script</strong>.</li>
+            <li>Salin seluruh kode dari file <code>google-apps-script/Code.gs</code> lalu tempel di editor Google.</li>
+            <li>Klik <strong>Terapkan &gt; Deployment Baru &gt; Aplikasi Web</strong>.</li>
+            <li>Pilih akses: "Siapa Saja" (Anyone), lalu klik Terapkan.</li>
+            <li>Salin URL hasil deployment dan tempel di formulir di atas.</li>
+          </ol>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn-secondary" id="btnCloseSettings">Batal</button>
+          <button type="submit" class="btn-primary" style="flex: 2;">Simpan Pengaturan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/camera.js"></script>
+  <script src="js/client-excel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
