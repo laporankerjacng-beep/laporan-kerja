@@ -504,9 +504,11 @@ function updateFlipButtonLabels() {
   const isSelfie = window.cameraManager.currentFacingMode === 'user';
   const btnFlipTop = document.getElementById('btnFlipCamera');
   const btnFlipBottom = document.getElementById('btnFlipCameraBottom');
+  // Tombol atas: teks singkat karena sudah dikecilkan
   if (btnFlipTop) {
-    btnFlipTop.innerHTML = isSelfie ? '🔄 Ke Kamera Belakang' : '🤳 Ke Kamera Depan (Selfie)';
+    btnFlipTop.innerHTML = isSelfie ? '📷 Belakang' : '🤳 Selfie';
   }
+  // Tombol bawah: juga singkat
   if (btnFlipBottom) {
     btnFlipBottom.innerHTML = isSelfie ? '📷 Belakang' : '🤳 Selfie';
   }
@@ -516,7 +518,6 @@ function setCameraMode(mode) {
   AppState.cameraMode = mode;
   const btnTabPhoto = document.getElementById('btnTabModePhoto');
   const btnTabVideo = document.getElementById('btnTabModeVideo');
-  const badge = document.getElementById('cameraActiveModeBadge');
   const snapBtn = document.getElementById('btnSnapPhoto');
   const recBtn = document.getElementById('btnRecordVideo');
   const multiContainer = document.getElementById('cameraMultiPhotoContainer');
@@ -524,14 +525,12 @@ function setCameraMode(mode) {
   if (mode === 'photo') {
     btnTabPhoto.classList.add('active');
     btnTabVideo.classList.remove('active');
-    badge.textContent = '📷 Mode: FOTO';
     snapBtn.style.display = 'flex';
     recBtn.style.display = 'none';
     multiContainer.style.display = 'flex';
   } else {
     btnTabVideo.classList.add('active');
     btnTabPhoto.classList.remove('active');
-    badge.textContent = '🎥 Mode: VIDEO';
     snapBtn.style.display = 'none';
     recBtn.style.display = 'flex';
     multiContainer.style.display = 'none';

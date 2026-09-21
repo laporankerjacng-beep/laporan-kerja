@@ -1409,29 +1409,6 @@ table.data-table tr:hover {
         <h2>Masuk Sistem</h2>
         <p class="subtitle">Sistem dokumentasi dan rekapitulasi pekerjaan operasional lapangan.</p>
 
-        <!-- Widget Selfie Login (Opsional - Foto Wajah saat Masuk) -->
-        <div class="login-selfie-box">
-          <div class="login-selfie-preview" id="loginSelfiePreview">
-            <!-- Placeholder -->
-            <div class="login-selfie-placeholder" id="loginSelfiePlaceholder">
-              <span class="selfie-icon">🤳</span>
-              <span>Foto Selfie Masuk (Opsional)</span>
-              <span style="font-size:0.7rem; color:#94a3b8;">Klik "Buka Kamera" untuk foto wajah sebelum login</span>
-            </div>
-            <!-- Video Feed Kamera Selfie -->
-            <video id="loginSelfieVideo" autoplay playsinline muted></video>
-            <!-- Hasil Foto -->
-            <img id="loginSelfieImg" alt="Foto Selfie" />
-            <canvas id="loginSelfieCanvas"></canvas>
-            <!-- Badge status kamera -->
-            <span class="selfie-status-badge" id="loginSelfieBadge" style="display:none;">📷 Kamera Aktif</span>
-          </div>
-          <div class="login-selfie-controls">
-            <button type="button" class="btn-selfie-action" id="btnOpenLoginCamera">📷 Buka Kamera</button>
-            <button type="button" class="btn-selfie-action snap" id="btnSnapLoginSelfie" style="display:none;">🤳 Jepret Selfie</button>
-            <button type="button" class="btn-selfie-action" id="btnRetakeLoginSelfie" style="display:none;">🔄 Ulangi Foto</button>
-          </div>
-        </div>
 
         <!-- Form Login -->
         <form id="loginForm">
@@ -1689,14 +1666,12 @@ table.data-table tr:hover {
     <div class="camera-header">
       <span class="camera-stage-badge" id="cameraStageBadge">MULAI PEKERJAAN</span>
       
-      <!-- Tombol Balik Kamera (Selfie / Belakang) -->
-      <button type="button" class="btn-flip-cam" id="btnFlipCamera" title="Tukar Kamera Depan (Selfie) atau Belakang">
-        🤳 Ke Kamera Depan (Selfie)
+      <!-- Tombol Balik Kamera (Selfie / Belakang) - ukuran kecil -->
+      <button type="button" id="btnFlipCamera" title="Tukar Kamera Depan (Selfie) atau Belakang"
+        style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: #ffffff; border-radius: 9999px; padding: 4px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap;">
+        🤳 Selfie
       </button>
 
-      <div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 10px; border-radius: 9999px;" id="cameraActiveModeBadge">
-        📷 Mode: FOTO
-      </div>
       <button class="btn-close-camera" id="btnCloseCamera" title="Tutup Kamera">✕</button>
     </div>
 
