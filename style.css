@@ -615,8 +615,7 @@ main.main-content {
 }
 
 .admin-view {
-  display: flex !important;
-  flex-direction: column !important;
+  flex-direction: column;
   gap: 1.25rem;
   width: 100%;
 }
