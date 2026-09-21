@@ -15,8 +15,17 @@
   <!-- ExcelJS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
-  <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css" />
+  <!-- Stylesheet (Auto Fallback ke root jika flat) -->
+  <link rel="stylesheet" href="css/style.css" id="mainStyle" />
+  <script>
+    var ms = document.getElementById('mainStyle');
+    if (ms) {
+      ms.onerror = function() {
+        this.onerror = null;
+        this.href = 'style.css';
+      };
+    }
+  </script>
 </head>
 <body>
 
@@ -568,9 +577,40 @@
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script src="js/camera.js"></script>
-  <script src="js/client-excel.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Scripts (Mendukung baik struktur folder js/ maupun file flat di root) -->
+  <script>
+    (function() {
+      var scripts = [
+        { primary: 'js/camera.js', fallback: 'camera.js' },
+        { primary: 'js/client-excel.js', fallback: 'client-excel.js' },
+        { primary: 'js/app.js', fallback: 'app.js' }
+      ];
+      
+      function loadNext(idx) {
+        if (idx >= scripts.length) return;
+        var item = scripts[idx];
+        var s = document.createElement('script');
+        s.src = item.primary;
+        s.onload = function() {
+          loadNext(idx + 1);
+        };
+        s.onerror = function() {
+          var fb = document.createElement('script');
+          fb.src = item.fallback;
+          fb.onload = function() {
+            loadNext(idx + 1);
+          };
+          fb.onerror = function() {
+            console.error('Failed script:', item.fallback);
+            loadNext(idx + 1);
+          };
+          document.body.appendChild(fb);
+        };
+        document.body.appendChild(s);
+      }
+      
+      loadNext(0);
+    })();
+  </script>
 </body>
 </html>

@@ -49,6 +49,32 @@ app.use('/js', express.static(path.join(__dirname, 'public', 'js')));
 app.use('/js', express.static(path.join(__dirname, 'js')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Fallback cerdas untuk file CSS & JS jika di-upload di root repository
+app.get('/css/style.css', (req, res, next) => {
+  const candidates = [
+    path.join(__dirname, 'public', 'css', 'style.css'),
+    path.join(__dirname, 'css', 'style.css'),
+    path.join(__dirname, 'style.css')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return res.sendFile(c);
+  }
+  next();
+});
+
+app.get('/js/:filename', (req, res, next) => {
+  const filename = req.params.filename;
+  const candidates = [
+    path.join(__dirname, 'public', 'js', filename),
+    path.join(__dirname, 'js', filename),
+    path.join(__dirname, filename)
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return res.sendFile(c);
+  }
+  next();
+});
+
 // Rute Halaman Utama (Utamakan public/index.html, fallback ke root index.html)
 app.get('/', (req, res) => {
   const publicIndex = path.join(__dirname, 'public', 'index.html');
