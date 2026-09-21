@@ -614,13 +614,11 @@ main.main-content {
   font-weight: 700;
 }
 
-/* ===================================================
-   BAGIAN 3: DASHBOARD PIC / SUPERVISOR (LAPTOP/TABLET)
-   =================================================== */
 .admin-view {
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 1.25rem;
+  width: 100%;
 }
 
 /* Statistik */
