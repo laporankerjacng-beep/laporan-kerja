@@ -420,15 +420,23 @@ app.post('/api/superadmin/reset-sheet', async (req, res) => {
   }
 });
 
-// Mulai Pekerjaan Baru (Foto / Video Mulai)
+// Mulai Pekerjaan Baru (Foto / Video Mulai, Mendukung Multi-Foto)
 app.post('/api/tasks/start', (req, res) => {
   try {
-    const { workerId, workerName, taskName, notes, photoBase64, videoBase64, location } = req.body;
+    const { workerId, workerName, taskName, notes, photoBase64, photosBase64, videoBase64, location } = req.body;
     if (!workerName || !taskName) {
       return res.status(400).json({ error: 'Nama Pekerja dan Nama Pekerjaan wajib diisi!' });
     }
 
-    // Anti-duplicate guard: cegah submit ganda instan (< 3 detik) untuk pekerja & tugas yang sama
+    // Validasi akun pekerja masih aktif & belum dihapus
+    if (workerId && workerId !== 'guest') {
+      const user = db.findUserById(workerId);
+      if (!user) {
+        return res.status(401).json({ error: 'Akun Anda telah dinonaktifkan atau dihapus oleh Administrator.' });
+      }
+    }
+
+    // Anti-duplicate guard: cegah submit ganda instan (< 4 detik) untuk pekerja & tugas yang sama
     const existingTasks = db.getTasks();
     const nowMs = Date.now();
     const recentDuplicate = existingTasks.find(t => 
@@ -441,11 +449,16 @@ app.post('/api/tasks/start', (req, res) => {
       return res.json({ success: true, message: 'Pekerjaan sudah dibuat (anti-duplicate)', task: recentDuplicate });
     }
 
-    let startPhotoUrl = null;
-    let startVideoUrl = null;
-    if (photoBase64) {
-      startPhotoUrl = saveBase64ToFile(photoBase64, 'mulai');
+    // Tangani multi-foto mulai
+    let startPhotos = [];
+    if (Array.isArray(photosBase64) && photosBase64.length > 0) {
+      startPhotos = photosBase64.map((p, idx) => saveBase64ToFile(p, `mulai-${idx + 1}`));
+    } else if (photoBase64) {
+      startPhotos = [saveBase64ToFile(photoBase64, 'mulai')];
     }
+    const startPhotoUrl = startPhotos[0] || null;
+
+    let startVideoUrl = null;
     if (videoBase64) {
       startVideoUrl = saveBase64ToFile(videoBase64, 'video-mulai');
     }
@@ -467,9 +480,11 @@ app.post('/api/tasks/start', (req, res) => {
       endTimestamp: null,
       durationMinutes: 0,
       startPhoto: startPhotoUrl,
+      startPhotos: startPhotos,
       startVideo: startVideoUrl,
       progressPhotos: [],
       finishPhoto: null,
+      finishPhotos: [],
       finishVideo: null,
       videoUrl: startVideoUrl || null,
       location: location || null,
@@ -485,12 +500,20 @@ app.post('/api/tasks/start', (req, res) => {
   }
 });
 
-// Tambah Foto / Video Progress
+// Tambah Foto / Video Progress (Mendukung Multi-Foto)
 app.post('/api/tasks/progress', (req, res) => {
   try {
-    const { taskId, photoBase64, videoBase64, note } = req.body;
+    const { taskId, workerId, photoBase64, photosBase64, videoBase64, note } = req.body;
     if (!taskId) {
       return res.status(400).json({ error: 'Task ID diperlukan!' });
+    }
+
+    // Validasi akun pekerja
+    if (workerId && workerId !== 'guest') {
+      const user = db.findUserById(workerId);
+      if (!user) {
+        return res.status(401).json({ error: 'Akun Anda telah dinonaktifkan atau dihapus oleh Administrator.' });
+      }
     }
 
     const task = db.getTaskById(taskId);
@@ -500,37 +523,45 @@ app.post('/api/tasks/progress', (req, res) => {
 
     task.progressPhotos = task.progressPhotos || [];
 
-    // Anti-duplicate guard: cegah submit ganda instan (< 4 detik) pada tugas yang sama
-    const nowMs = Date.now();
-    if (task.progressPhotos.length > 0) {
-      const lastProg = task.progressPhotos[task.progressPhotos.length - 1];
-      if (lastProg.timestamp && (nowMs - lastProg.timestamp < 4000) && lastProg.note === (note || '')) {
-        console.log(`[Anti-Duplicate] Progress ganda dicegah untuk task ${taskId}`);
-        return res.json({ success: true, message: 'Progress sudah tercatat (anti-duplicate)', task });
-      }
-    }
-
-    let photoUrl = null;
-    let videoUrl = null;
-
-    if (photoBase64) {
-      photoUrl = saveBase64ToFile(photoBase64, 'progress');
-    }
-    if (videoBase64) {
-      videoUrl = saveBase64ToFile(videoBase64, 'video');
-      task.videoUrl = videoUrl;
-    }
-
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    task.progressPhotos.push({
-      photoUrl: photoUrl || '',
-      videoUrl: videoUrl || '',
-      note: note || '',
-      time: timeStr,
-      timestamp: now.getTime()
-    });
+    // Tambah video jika ada
+    let videoUrl = null;
+    if (videoBase64) {
+      videoUrl = saveBase64ToFile(videoBase64, 'video');
+      task.videoUrl = videoUrl;
+      task.progressPhotos.push({
+        photoUrl: '',
+        videoUrl: videoUrl,
+        note: note || '',
+        time: timeStr,
+        timestamp: now.getTime()
+      });
+    }
+
+    // Tambah foto (multi-foto didukung)
+    if (Array.isArray(photosBase64) && photosBase64.length > 0) {
+      photosBase64.forEach((p, idx) => {
+        const photoUrl = saveBase64ToFile(p, `progress-${idx + 1}`);
+        task.progressPhotos.push({
+          photoUrl: photoUrl,
+          videoUrl: '',
+          note: note || '',
+          time: timeStr,
+          timestamp: now.getTime() + idx
+        });
+      });
+    } else if (photoBase64) {
+      const photoUrl = saveBase64ToFile(photoBase64, 'progress');
+      task.progressPhotos.push({
+        photoUrl: photoUrl,
+        videoUrl: '',
+        note: note || '',
+        time: timeStr,
+        timestamp: now.getTime()
+      });
+    }
 
     db.saveTask(task);
     res.json({ success: true, message: 'Progress berhasil didokumentasikan!', task });
@@ -558,12 +589,20 @@ app.delete('/api/tasks/:id/progress/:index', (req, res) => {
   }
 });
 
-// Selesaikan Pekerjaan (Foto / Video Selesai)
+// Selesaikan Pekerjaan (Foto / Video Selesai, Mendukung Multi-Foto)
 app.post('/api/tasks/complete', (req, res) => {
   try {
-    const { taskId, photoBase64, videoBase64, finalNotes } = req.body;
+    const { taskId, workerId, photoBase64, photosBase64, videoBase64, finalNotes } = req.body;
     if (!taskId) {
       return res.status(400).json({ error: 'Task ID diperlukan!' });
+    }
+
+    // Validasi akun pekerja
+    if (workerId && workerId !== 'guest') {
+      const user = db.findUserById(workerId);
+      if (!user) {
+        return res.status(401).json({ error: 'Akun Anda telah dinonaktifkan atau dihapus oleh Administrator.' });
+      }
     }
 
     const task = db.getTaskById(taskId);
@@ -571,11 +610,16 @@ app.post('/api/tasks/complete', (req, res) => {
       return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
     }
 
-    let finishPhotoUrl = null;
-    let finishVideoUrl = null;
-    if (photoBase64) {
-      finishPhotoUrl = saveBase64ToFile(photoBase64, 'selesai');
+    // Tangani multi-foto selesai
+    let finishPhotos = [];
+    if (Array.isArray(photosBase64) && photosBase64.length > 0) {
+      finishPhotos = photosBase64.map((p, idx) => saveBase64ToFile(p, `selesai-${idx + 1}`));
+    } else if (photoBase64) {
+      finishPhotos = [saveBase64ToFile(photoBase64, 'selesai')];
     }
+    const finishPhotoUrl = finishPhotos[0] || null;
+
+    let finishVideoUrl = null;
     if (videoBase64) {
       finishVideoUrl = saveBase64ToFile(videoBase64, 'video-selesai');
       task.finishVideo = finishVideoUrl;
@@ -594,6 +638,7 @@ app.post('/api/tasks/complete', (req, res) => {
     task.endTimestamp = endMs;
     task.durationMinutes = durationMinutes;
     if (finishPhotoUrl) task.finishPhoto = finishPhotoUrl;
+    task.finishPhotos = finishPhotos;
     task.status = 'completed';
     if (finalNotes) {
       task.notes = task.notes ? `${task.notes} | ${finalNotes}` : finalNotes;
