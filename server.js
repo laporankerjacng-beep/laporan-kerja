@@ -40,9 +40,23 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files
+// Static files (dukung folder public maupun jika di-upload di root)
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Rute Halaman Utama (Utamakan public/index.html, fallback ke root index.html)
+app.get('/', (req, res) => {
+  const publicIndex = path.join(__dirname, 'public', 'index.html');
+  const rootIndex = path.join(__dirname, 'index.html');
+  if (fs.existsSync(publicIndex)) {
+    return res.sendFile(publicIndex);
+  }
+  if (fs.existsSync(rootIndex)) {
+    return res.sendFile(rootIndex);
+  }
+  res.status(404).send('File index.html tidak ditemukan. Pastikan folder public di-upload ke repository.');
+});
 
 // Konfigurasi Multer untuk upload file media
 const storage = multer.diskStorage({
