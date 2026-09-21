@@ -184,6 +184,17 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Verifikasi Sesi Pengguna (Cek apakah user masih ada / belum dihapus)
+app.get('/api/auth/me', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ valid: false, error: 'User ID wajib diisi' });
+  const user = db.findUserById(userId);
+  if (!user) return res.status(401).json({ valid: false, error: 'Akun telah dihapus atau tidak ditemukan' });
+  const { passwordHash: _, ...safeUser } = user;
+  res.json({ valid: true, user: safeUser });
+});
+
+
 // Daftar Seluruh Karyawan (HANYA karyawan biasa, akun superadmin & admin disaring keluar)
 app.get('/api/admin/workers', (req, res) => {
   const users = db.getUsers()

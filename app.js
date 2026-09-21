@@ -47,13 +47,30 @@ function initLiveClock() {
   update();
 }
 
-function loadSavedUser() {
+async function loadSavedUser() {
   const saved = localStorage.getItem('laporan_user');
   if (saved) {
-    try { AppState.currentUser = JSON.parse(saved); applyUserSession(); }
-    catch (e) { localStorage.removeItem('laporan_user'); }
+    try {
+      const user = JSON.parse(saved);
+      if (!user || !user.id) { showAuthView(); return; }
+      // Verifikasi ke server apakah akun user ini masih aktif / belum dihapus
+      const res = await fetch('/api/auth/me?userId=' + encodeURIComponent(user.id));
+      const data = await res.json();
+      if (res.ok && data.valid && data.user) {
+        AppState.currentUser = data.user;
+        localStorage.setItem('laporan_user', JSON.stringify(data.user));
+        applyUserSession();
+      } else {
+        // Akun telah dihapus dari sistem, hapus sesi & logout
+        console.warn('Sesi tidak valid / akun telah dihapus:', data.error);
+        showAuthView();
+      }
+    } catch (e) {
+      showAuthView();
+    }
   } else { showAuthView(); }
 }
+
 
 function applyUserSession() {
   const user = AppState.currentUser;
