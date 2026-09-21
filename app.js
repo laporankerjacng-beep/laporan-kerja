@@ -27,14 +27,11 @@ const AppState = {
 
 let capturedPhotos = []; // Array of Base64 JPEG strings
 let capturedVideoResult = null; // Video Base64 String
-let loginSelfieBase64 = null; // Foto selfie saat login (opsional)
-let loginSelfieStream = null; // Stream kamera selfie login
 
 document.addEventListener('DOMContentLoaded', () => {
   initLiveClock();
   loadSavedUser();
   setupEventListeners();
-  setupLoginSelfieControls();
   loadSettings();
 });
 
@@ -155,10 +152,6 @@ function showAuthView() {
   document.getElementById('headerUserBadge').style.display = 'none';
   document.getElementById('workerViewSection').style.display = 'none';
   document.getElementById('adminViewSection').style.display = 'none';
-  // Reset selfie saat logout
-  stopLoginSelfieCamera();
-  loginSelfieBase64 = null;
-  resetLoginSelfieWidget();
 }
 
 function setupPasswordToggle(btnId, inputId) {
@@ -321,102 +314,6 @@ function setupEventListeners() {
 }
 
 // ============================================================================
-// 2.5. SELFIE LOGIN (FOTO WAJAH SAAT MASUK - OPSIONAL)
-// ============================================================================
-function setupLoginSelfieControls() {
-  const btnOpen = document.getElementById('btnOpenLoginCamera');
-  const btnSnap = document.getElementById('btnSnapLoginSelfie');
-  const btnRetake = document.getElementById('btnRetakeLoginSelfie');
-  if (btnOpen) btnOpen.addEventListener('click', openLoginSelfieCamera);
-  if (btnSnap) btnSnap.addEventListener('click', snapLoginSelfie);
-  if (btnRetake) btnRetake.addEventListener('click', () => {
-    loginSelfieBase64 = null;
-    resetLoginSelfieWidget();
-    openLoginSelfieCamera();
-  });
-}
-
-async function openLoginSelfieCamera() {
-  const video = document.getElementById('loginSelfieVideo');
-  const placeholder = document.getElementById('loginSelfiePlaceholder');
-  const badge = document.getElementById('loginSelfieBadge');
-  const img = document.getElementById('loginSelfieImg');
-  const btnOpen = document.getElementById('btnOpenLoginCamera');
-  const btnSnap = document.getElementById('btnSnapLoginSelfie');
-  try {
-    loginSelfieStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false
-    });
-    video.srcObject = loginSelfieStream;
-    await video.play();
-    if (placeholder) placeholder.style.display = 'none';
-    if (img) img.style.display = 'none';
-    video.style.display = 'block';
-    if (badge) badge.style.display = 'inline-block';
-    if (btnOpen) btnOpen.style.display = 'none';
-    if (btnSnap) btnSnap.style.display = 'flex';
-  } catch (err) {
-    console.warn('Kamera selfie login tidak tersedia:', err.message);
-    const btnO = document.getElementById('btnOpenLoginCamera');
-    if (btnO) { btnO.textContent = '❌ Kamera Tidak Tersedia'; btnO.disabled = true; }
-  }
-}
-
-function snapLoginSelfie() {
-  const video = document.getElementById('loginSelfieVideo');
-  const canvas = document.getElementById('loginSelfieCanvas');
-  const img = document.getElementById('loginSelfieImg');
-  const badge = document.getElementById('loginSelfieBadge');
-  const btnSnap = document.getElementById('btnSnapLoginSelfie');
-  const btnRetake = document.getElementById('btnRetakeLoginSelfie');
-  if (!video || !canvas) return;
-  const w = video.videoWidth || 640;
-  const h = video.videoHeight || 480;
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, w, h);
-  ctx.restore();
-  const now = new Date();
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, h - 22, w, 22);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('Login: ' + now.toLocaleString('id-ID') + ' WIB', 8, h - 5);
-  loginSelfieBase64 = canvas.toDataURL('image/jpeg', 0.85);
-  if (img) { img.src = loginSelfieBase64; img.style.display = 'block'; }
-  video.style.display = 'none';
-  if (badge) badge.style.display = 'none';
-  stopLoginSelfieCamera();
-  if (btnSnap) btnSnap.style.display = 'none';
-  if (btnRetake) btnRetake.style.display = 'flex';
-}
-
-function stopLoginSelfieCamera() {
-  if (loginSelfieStream) { loginSelfieStream.getTracks().forEach(t => t.stop()); loginSelfieStream = null; }
-  const video = document.getElementById('loginSelfieVideo');
-  if (video) { video.srcObject = null; video.style.display = 'none'; }
-}
-
-function resetLoginSelfieWidget() {
-  const placeholder = document.getElementById('loginSelfiePlaceholder');
-  const img = document.getElementById('loginSelfieImg');
-  const video = document.getElementById('loginSelfieVideo');
-  const badge = document.getElementById('loginSelfieBadge');
-  const btnOpen = document.getElementById('btnOpenLoginCamera');
-  const btnSnap = document.getElementById('btnSnapLoginSelfie');
-  const btnRetake = document.getElementById('btnRetakeLoginSelfie');
-  if (placeholder) placeholder.style.display = 'flex';
-  if (img) { img.style.display = 'none'; img.src = ''; }
-  if (video) video.style.display = 'none';
-  if (badge) badge.style.display = 'none';
-  if (btnOpen) { btnOpen.style.display = 'flex'; btnOpen.disabled = false; btnOpen.textContent = '📷 Buka Kamera'; }
-  if (btnSnap) btnSnap.style.display = 'none';
-  if (btnRetake) btnRetake.style.display = 'none';
-}
-
-// ============================================================================
 // 3. KAMERA & MULTI-FOTO DENGAN SELFIE
 // ============================================================================
 function updateCameraShutterState() {
@@ -426,21 +323,17 @@ function updateCameraShutterState() {
   const requiredBar = document.getElementById('cameraRequiredNote');
   if (!noteInput) return;
 
-  // Keterangan WAJIB hanya saat tahap 'mulai', opsional untuk progress dan selesai
-  const isMulaiStage = AppState.cameraPendingStage === 'mulai';
   const hasNote = noteInput.value.trim().length > 0;
-  const canShoot = !isMulaiStage || hasNote; // boleh foto jika bukan mulai, atau sudah ada catatan
-
   if (snapBtn) {
-    snapBtn.disabled = !canShoot;
-    snapBtn.style.opacity = canShoot ? '1' : '0.4';
+    snapBtn.disabled = !hasNote;
+    snapBtn.style.opacity = hasNote ? '1' : '0.4';
   }
   if (recBtn && !window.cameraManager.isRecording) {
-    recBtn.disabled = !canShoot;
-    recBtn.style.opacity = canShoot ? '1' : '0.4';
+    recBtn.disabled = !hasNote;
+    recBtn.style.opacity = hasNote ? '1' : '0.4';
   }
-  noteInput.style.border = hasNote ? '2px solid rgba(34,197,94,0.7)' : (isMulaiStage ? '2px solid rgba(234,179,8,0.7)' : '2px solid rgba(148,163,184,0.5)');
-  if (requiredBar) requiredBar.style.display = (isMulaiStage && !hasNote) ? 'flex' : 'none';
+  noteInput.style.border = hasNote ? '2px solid rgba(34,197,94,0.7)' : '2px solid rgba(234,179,8,0.7)';
+  if (requiredBar) requiredBar.style.display = hasNote ? 'none' : 'flex';
 }
 
 async function openCameraModal(opts) {
@@ -504,11 +397,9 @@ function updateFlipButtonLabels() {
   const isSelfie = window.cameraManager.currentFacingMode === 'user';
   const btnFlipTop = document.getElementById('btnFlipCamera');
   const btnFlipBottom = document.getElementById('btnFlipCameraBottom');
-  // Tombol atas: teks singkat karena sudah dikecilkan
   if (btnFlipTop) {
-    btnFlipTop.innerHTML = isSelfie ? '📷 Belakang' : '🤳 Selfie';
+    btnFlipTop.innerHTML = isSelfie ? '🔄 Ke Kamera Belakang' : '🤳 Ke Kamera Depan (Selfie)';
   }
-  // Tombol bawah: juga singkat
   if (btnFlipBottom) {
     btnFlipBottom.innerHTML = isSelfie ? '📷 Belakang' : '🤳 Selfie';
   }
@@ -518,6 +409,7 @@ function setCameraMode(mode) {
   AppState.cameraMode = mode;
   const btnTabPhoto = document.getElementById('btnTabModePhoto');
   const btnTabVideo = document.getElementById('btnTabModeVideo');
+  const badge = document.getElementById('cameraActiveModeBadge');
   const snapBtn = document.getElementById('btnSnapPhoto');
   const recBtn = document.getElementById('btnRecordVideo');
   const multiContainer = document.getElementById('cameraMultiPhotoContainer');
@@ -525,12 +417,14 @@ function setCameraMode(mode) {
   if (mode === 'photo') {
     btnTabPhoto.classList.add('active');
     btnTabVideo.classList.remove('active');
+    badge.textContent = '📷 Mode: FOTO';
     snapBtn.style.display = 'flex';
     recBtn.style.display = 'none';
     multiContainer.style.display = 'flex';
   } else {
     btnTabVideo.classList.add('active');
     btnTabPhoto.classList.remove('active');
+    badge.textContent = '🎥 Mode: VIDEO';
     snapBtn.style.display = 'none';
     recBtn.style.display = 'flex';
     multiContainer.style.display = 'none';
@@ -541,9 +435,8 @@ function setCameraMode(mode) {
 function snapPhoto() {
   const noteInput = document.getElementById('cameraNoteInput');
   const noteVal = noteInput ? noteInput.value.trim() : '';
-  // Keterangan WAJIB hanya di tahap 'mulai'
-  if (AppState.cameraPendingStage === 'mulai' && !noteVal) {
-    alert('Wajib isi keterangan / nama aktivitas terlebih dahulu!');
+  if (!noteVal) {
+    alert('Wajib isi keterangan terlebih dahulu!');
     if (noteInput) noteInput.focus();
     return;
   }
@@ -619,9 +512,8 @@ function removeCapturedPhoto(index) {
 async function handleVideoRecordingClick() {
   const noteInput = document.getElementById('cameraNoteInput');
   const noteVal = noteInput ? noteInput.value.trim() : '';
-  // Keterangan WAJIB hanya di tahap 'mulai'
-  if (AppState.cameraPendingStage === 'mulai' && !noteVal) {
-    alert('Wajib isi keterangan / nama aktivitas terlebih dahulu sebelum merekam video!');
+  if (!noteVal) {
+    alert('Wajib isi keterangan terlebih dahulu sebelum merekam video!');
     if (noteInput) noteInput.focus();
     return;
   }
@@ -1217,8 +1109,7 @@ async function handleExportExcel() {
     const date = document.getElementById('filterDateInput')?.value || '';
     const worker = document.getElementById('filterWorkerSelect')?.value || 'all';
 
-    // URL yang benar sesuai endpoint server
-    const url = '/api/tasks/export-excel?date=' + encodeURIComponent(date) + '&workerName=' + encodeURIComponent(worker);
+    const url = '/api/export/excel?date=' + encodeURIComponent(date) + '&workerName=' + encodeURIComponent(worker);
     window.location.href = url;
   } catch (err) {
     alert('Gagal mengekspor Excel: ' + err.message);
@@ -1322,8 +1213,7 @@ async function loadSettings() {
   try {
     const res = await fetch('/api/settings');
     const data = await res.json();
-    // API /api/settings mengembalikan data langsung (bukan dibungkus .settings)
-    AppState.settings = data || {};
+    AppState.settings = data.settings || {};
     const compInput = document.getElementById('settingCompanyName');
     const gasInput = document.getElementById('settingGasUrl');
     if (compInput) compInput.value = AppState.settings.companyName || 'Laporan Kerja Lapangan';
@@ -1338,15 +1228,13 @@ async function handleSaveSettings(e) {
   const companyName = document.getElementById('settingCompanyName').value.trim();
   const gasWebhookUrl = document.getElementById('settingGasUrl').value.trim();
   try {
-    // Server hanya mendukung POST untuk /api/settings
     const res = await fetch('/api/settings', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyName, gasWebhookUrl, autoSyncGDrive: false })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Gagal menyimpan pengaturan!');
-    AppState.settings = data.settings || data || {};
     alert('Pengaturan berhasil disimpan!');
     closeSettingsModal();
   } catch (err) {
