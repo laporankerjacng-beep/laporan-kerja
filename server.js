@@ -43,6 +43,10 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Static files (dukung folder public maupun jika di-upload di root)
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
+app.use('/css', express.static(path.join(__dirname, 'public', 'css')));
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/js', express.static(path.join(__dirname, 'public', 'js')));
+app.use('/js', express.static(path.join(__dirname, 'js')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Rute Halaman Utama (Utamakan public/index.html, fallback ke root index.html)
