@@ -23,6 +23,21 @@ function getLocalIpAddress() {
   return 'localhost';
 }
 
+// Helper format waktu & tanggal WIB standar (HH:mm:ss & dd/MM/yyyy)
+function getWibTimeString(date = new Date()) {
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function getWibDateString(date = new Date()) {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}/${m}/${y}`;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -469,8 +484,8 @@ app.post('/api/tasks/start', (req, res) => {
     }
 
     const now = new Date();
-    const dateStr = now.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = getWibDateString(now);
+    const timeStr = getWibTimeString(now);
 
     const newTask = {
       id: 'task_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -542,7 +557,7 @@ app.post('/api/tasks/progress', (req, res) => {
     task.progressPhotos = task.progressPhotos || [];
 
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timeStr = getWibTimeString(now);
 
     // Tambah video jika ada
     let videoUrl = null;
@@ -658,7 +673,7 @@ app.post('/api/tasks/complete', (req, res) => {
     }
 
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timeStr = getWibTimeString(now);
     
     // Hitung durasi kerja dalam menit
     const startMs = task.startTimestamp || now.getTime();
@@ -945,13 +960,14 @@ app.post('/api/tasks/test-gas', async (req, res) => {
       return res.status(400).json({ error: 'Masukkan URL Webhook Google Apps Script terlebih dahulu!' });
     }
 
+    const testNow = new Date();
     const testPayload = {
       workerName: 'Uji Coba Sistem',
-      date: new Date().toLocaleDateString('id-ID'),
+      date: getWibDateString(testNow),
       taskName: 'Tes Koneksi Google Sheet',
       notes: 'Koneksi dari web app berhasil terhubung & siap digunakan!',
-      startTime: '08:00',
-      endTime: '08:30',
+      startTime: getWibTimeString(testNow),
+      endTime: getWibTimeString(new Date(testNow.getTime() + 30 * 60 * 1000)),
       durationMinutes: 30,
       status: 'completed',
       videoUrl: ''
