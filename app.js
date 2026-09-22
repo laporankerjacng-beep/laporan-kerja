@@ -763,9 +763,14 @@ async function submitAllCapturedMedia() {
   }
 
   AppState.isSubmitting = true;
+  const overlay = document.getElementById('globalSubmitOverlay');
+  if (overlay) overlay.style.display = 'flex';
+
   const submitBtn = document.getElementById('btnConfirmMultiPhotos');
   if (submitBtn) {
     submitBtn.disabled = true;
+    submitBtn.style.pointerEvents = 'none';
+    submitBtn.style.opacity = '0.6';
     submitBtn.textContent = '⏳ Mengunggah Dokumentasi...';
   }
 
@@ -851,8 +856,11 @@ async function submitAllCapturedMedia() {
     alert('Gagal: ' + err.message);
   } finally {
     AppState.isSubmitting = false;
+    if (overlay) overlay.style.display = 'none';
     if (submitBtn) {
       submitBtn.disabled = false;
+      submitBtn.style.pointerEvents = 'auto';
+      submitBtn.style.opacity = '1';
       if (AppState.cameraMode === 'video' && capturedVideoResult) {
         submitBtn.innerHTML = '✅ Simpan Rekaman Video & Kirim Laporan';
       } else if (AppState.cameraMode === 'photo' && capturedPhotos.length > 0) {

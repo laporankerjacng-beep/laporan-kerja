@@ -441,13 +441,13 @@ app.post('/api/tasks/start', (req, res) => {
       }
     }
 
-    // Anti-duplicate guard: cegah submit ganda instan (< 4 detik) untuk pekerja & tugas yang sama
+    // Anti-duplicate guard: cegah submit ganda instan (< 15 detik) untuk pekerja & tugas yang sama
     const existingTasks = db.getTasks();
     const nowMs = Date.now();
     const recentDuplicate = existingTasks.find(t => 
       t.workerName.toLowerCase() === workerName.trim().toLowerCase() &&
       t.taskName.toLowerCase() === taskName.trim().toLowerCase() &&
-      t.startTimestamp && (nowMs - t.startTimestamp < 4000)
+      t.startTimestamp && (nowMs - t.startTimestamp < 15000)
     );
     if (recentDuplicate) {
       console.log(`[Anti-Duplicate] Mengembalikan tugas yang baru saja dibuat untuk ${workerName}: ${recentDuplicate.id}`);
@@ -531,6 +531,12 @@ app.post('/api/tasks/progress', (req, res) => {
     const task = db.getTaskById(taskId);
     if (!task) {
       return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
+    }
+
+    // Anti-duplicate guard untuk progress (cegah double tap dalam 5 detik)
+    const lastProg = task.progressPhotos && task.progressPhotos[task.progressPhotos.length - 1];
+    if (lastProg && lastProg.timestamp && (Date.now() - lastProg.timestamp < 5000) && lastProg.note === (note || '')) {
+      return res.json({ success: true, message: 'Progress sudah tercatat (anti-duplicate)', task });
     }
 
     task.progressPhotos = task.progressPhotos || [];
@@ -627,6 +633,12 @@ app.post('/api/tasks/complete', (req, res) => {
     const task = db.getTaskById(taskId);
     if (!task) {
       return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
+    }
+
+    // Anti-duplicate guard: cegah penyelesaian ganda (double tap Selesai di HP)
+    if (task.status === 'completed') {
+      console.log(`[Anti-Duplicate] Tugas ${taskId} sudah diselesaikan sebelumnya.`);
+      return res.json({ success: true, message: 'Pekerjaan sudah diselesaikan sebelumnya', task });
     }
 
     // Tangani multi-foto selesai
@@ -814,6 +826,7 @@ async function syncTaskToGoogleSheets(task, originUrl) {
     const progPic = task.progressPhotos && task.progressPhotos[0] ? (task.progressPhotos[0].photoUrl || task.progressPhotos[0]) : null;
 
     const payload = {
+      taskId: task.id,
       workerName: task.workerName,
       date: task.date,
       taskName: task.taskName,
