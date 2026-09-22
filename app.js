@@ -263,6 +263,14 @@ function setupEventListeners() {
   const btnDelTask = document.getElementById('btnDeleteActiveTask');
   if (btnDelTask) btnDelTask.addEventListener('click', handleDeleteActiveTask);
 
+  // Worker - Pencarian Riwayat Kerja per Tanggal
+  const btnSearchHist = document.getElementById('btnSearchWorkerHistory');
+  if (btnSearchHist) btnSearchHist.addEventListener('click', searchWorkerHistoryByDate);
+  const btnTodayHist = document.getElementById('btnShowTodayHistory');
+  if (btnTodayHist) btnTodayHist.addEventListener('click', showTodayWorkerHistory);
+  const histDateInput = document.getElementById('workerHistoryDateInput');
+  if (histDateInput) histDateInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') searchWorkerHistoryByDate(); });
+
   // Camera Controls
   const btnCloseCam = document.getElementById('btnCloseCamera');
   if (btnCloseCam) btnCloseCam.addEventListener('click', closeCameraModal);
@@ -1026,25 +1034,134 @@ async function loadWorkerHistory() {
   const user = AppState.currentUser;
   if (!user) return;
   try {
+    // Ambil data tugas milik karyawan ini
     const res = await fetch('/api/tasks?workerName=' + encodeURIComponent(user.fullName || user.username));
     const data = await res.json();
     AppState.tasks = data.tasks || [];
     AppState.activeTasks = AppState.tasks.filter(t => t.status === 'in_progress');
-    const todayCount = document.getElementById('todayHistoryCount');
-    if (todayCount) todayCount.textContent = AppState.tasks.length + ' pekerjaan';
-    renderWorkerHistoryList(AppState.tasks);
+
+    // Sesuai instruksi: Riwayat kerja setiap hari dibuka dalam kondisi kosong
+    // Karyawan harus mencari menggunakan tanggal, bulan, dan tahun
+    const dateInput = document.getElementById('workerHistoryDateInput');
+    const countEl = document.getElementById('todayHistoryCount');
+    const listEl = document.getElementById('workerHistoryList');
+
+    if (dateInput) {
+      dateInput.value = ''; // Kosongkan pilihan tanggal saat awal buka
+    }
+    if (countEl) {
+      countEl.textContent = 'Pilih tanggal untuk mencari';
+    }
+    if (listEl) {
+      listEl.innerHTML = '<div style="text-align:center; padding:1.75rem 1rem; color:var(--text-dim);">' +
+        '<div style="font-size:2.2rem; margin-bottom:0.5rem; opacity:0.8;">📅</div>' +
+        '<div style="font-weight:700; font-size:0.95rem; color:var(--text-main); margin-bottom:0.35rem;">Riwayat Kerja Disimpan Rapi</div>' +
+        '<p style="font-size:0.8rem; margin:0; line-height:1.4;">Untuk melihat riwayat pekerjaan, silakan tentukan <b>tanggal, bulan, dan tahun</b> di atas lalu klik tombol <b>🔍 Cari</b>.</p>' +
+        '</div>';
+    }
   } catch (err) {
     console.warn('Gagal muat riwayat:', err);
   }
 }
 
-function renderWorkerHistoryList(tasks) {
+// Helper: tanggal hari ini format yyyy-MM-dd (untuk input[type=date])
+function getTodayIsoDate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Helper: konversi YYYY-MM-DD ke dd/MM/yyyy (format di tasks.json)
+function isoToIndonesianDate(isoStr) {
+  if (!isoStr) return null;
+  const parts = isoStr.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return null;
+}
+
+function showTodayWorkerHistory() {
+  const dateInput = document.getElementById('workerHistoryDateInput');
+  const todayIso = getTodayIsoDate();
+  if (dateInput) dateInput.value = todayIso;
+  filterAndRenderHistory(todayIso);
+}
+
+function searchWorkerHistoryByDate() {
+  const dateInput = document.getElementById('workerHistoryDateInput');
+  const val = dateInput ? dateInput.value : '';
+  if (!val) {
+    alert('Silakan pilih tanggal terlebih dahulu!');
+    if (dateInput) dateInput.focus();
+    return;
+  }
+  filterAndRenderHistory(val);
+}
+
+function filterAndRenderHistory(isoDate) {
+  const indoDate = isoToIndonesianDate(isoDate);
+  let targetYear, targetMonth, targetDay;
+  if (isoDate) {
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      targetYear = parseInt(parts[0], 10);
+      targetMonth = parseInt(parts[1], 10) - 1; // 0-indexed
+      targetDay = parseInt(parts[2], 10);
+    }
+  }
+
+  // Filter tasks yang tanggalnya sesuai (hanya yang statusnya 'completed')
+  const filtered = AppState.tasks.filter(t => {
+    if (t.status !== 'completed') return false;
+    // 1. Cek via format string 'dd/MM/yyyy'
+    if (indoDate && t.date === indoDate) return true;
+    // 2. Cek via endTimestamp (waktu lokal)
+    if (t.endTimestamp && targetYear !== undefined) {
+      const tDate = new Date(t.endTimestamp);
+      if (tDate.getFullYear() === targetYear && tDate.getMonth() === targetMonth && tDate.getDate() === targetDay) {
+        return true;
+      }
+    }
+    // 3. Fallback via startTimestamp
+    if (t.startTimestamp && targetYear !== undefined) {
+      const tDate = new Date(t.startTimestamp);
+      if (tDate.getFullYear() === targetYear && tDate.getMonth() === targetMonth && tDate.getDate() === targetDay) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  const countEl = document.getElementById('todayHistoryCount');
+  const isToday = isoDate === getTodayIsoDate();
+  const labelDate = indoDate || isoDate;
+
+  if (countEl) {
+    if (isToday) {
+      countEl.textContent = filtered.length ? `${filtered.length} pekerjaan selesai hari ini` : 'Belum ada hari ini';
+    } else {
+      countEl.textContent = `${filtered.length} pekerjaan (${labelDate})`;
+    }
+  }
+
+  renderWorkerHistoryList(filtered, labelDate, isToday);
+}
+
+function renderWorkerHistoryList(tasks, labelDate, isToday) {
   const listEl = document.getElementById('workerHistoryList');
   if (!listEl) return;
 
   const done = tasks.filter(t => t.status === 'completed');
   if (!done.length) {
-    listEl.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding:1rem;">Belum ada riwayat pekerjaan selesai hari ini.</p>';
+    const emptyMsg = isToday
+      ? 'Belum ada pekerjaan selesai hari ini.'
+      : `Tidak ada riwayat pekerjaan pada tanggal ${labelDate || 'yang dipilih'}.`;
+    listEl.innerHTML = '<div style="text-align:center; color:var(--text-dim); padding:1.75rem 1rem;">' +
+      '<div style="font-size:2rem; margin-bottom:0.5rem; opacity:0.6;">📭</div>' +
+      '<p style="font-weight:600; margin:0 0 0.25rem 0; color:var(--text-main);">' + escapeHtml(emptyMsg) + '</p>' +
+      '<p style="font-size:0.78rem; margin:0;">Silakan cek tanggal lain atau pastikan pekerjaan sudah diselesaikan.</p>' +
+      '</div>';
     return;
   }
 
