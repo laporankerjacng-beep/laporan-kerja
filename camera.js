@@ -242,19 +242,31 @@ class CameraManager {
 
     this.recordedChunks = [];
     const mimeTypes = [
-      'video/webm;codecs=vp9',
       'video/webm;codecs=vp8',
       'video/webm',
+      'video/mp4;codecs=avc1',
       'video/mp4'
     ];
-    let selectedMime = mimeTypes.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    let selectedMime = mimeTypes.find(t => typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(t)) || '';
+
+    const recorderOptions = {
+      videoBitsPerSecond: 900000 // 900 kbps - jernih & ukuran ringan (~100 KB/detik, 20 detik = ~2 MB)
+    };
+    if (selectedMime) {
+      recorderOptions.mimeType = selectedMime;
+    }
 
     try {
-      this.mediaRecorder = selectedMime
-        ? new MediaRecorder(this.stream, { mimeType: selectedMime })
-        : new MediaRecorder(this.stream);
+      this.mediaRecorder = new MediaRecorder(this.stream, recorderOptions);
     } catch (e) {
-      this.mediaRecorder = new MediaRecorder(this.stream);
+      console.warn('Gagal dengan bitrate options, fallback standard:', e);
+      try {
+        this.mediaRecorder = selectedMime
+          ? new MediaRecorder(this.stream, { mimeType: selectedMime })
+          : new MediaRecorder(this.stream);
+      } catch (e2) {
+        this.mediaRecorder = new MediaRecorder(this.stream);
+      }
     }
 
     this.mediaRecorder.ondataavailable = (e) => {
@@ -274,8 +286,11 @@ class CameraManager {
       }
       // Batasi perekaman maksimal 45 detik agar ukuran wajar
       if (this.recordSeconds >= 45) {
-        this.stopVideoRecording();
-        if (typeof onMaxReached === 'function') onMaxReached();
+        if (typeof onMaxReached === 'function') {
+          onMaxReached();
+        } else {
+          this.stopVideoRecording();
+        }
       }
     }, 1000);
   }
@@ -297,16 +312,37 @@ class CameraManager {
       }
       this.isRecording = false;
 
-      this.mediaRecorder.onstop = () => {
-        const mime = this.mediaRecorder.mimeType || 'video/webm';
+      let resolved = false;
+      const finalize = () => {
+        if (resolved) return;
+        resolved = true;
+        const mime = this.mediaRecorder?.mimeType || 'video/webm';
         const blob = new Blob(this.recordedChunks, { type: mime });
         this.recordedChunks = [];
         resolve(blob);
       };
 
-      if (this.mediaRecorder.state !== 'inactive') {
-        this.mediaRecorder.stop();
+      this.mediaRecorder.onstop = finalize;
+
+      // Flush data buffer yang belum tersimpan
+      try {
+        if (this.mediaRecorder.state === 'recording') {
+          this.mediaRecorder.requestData();
+        }
+      } catch (_) {}
+
+      try {
+        if (this.mediaRecorder.state !== 'inactive') {
+          this.mediaRecorder.stop();
+        } else {
+          finalize();
+        }
+      } catch (_) {
+        finalize();
       }
+
+      // Safety fallback jika browser telat trigger onstop
+      setTimeout(finalize, 1500);
     });
   }
 }

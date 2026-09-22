@@ -76,15 +76,15 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
     const cols = [
       { header: 'NO', width: 6 },
       { header: 'TANGGAL', width: 14 },
-      { header: 'NAMA PEKERJA', width: 20 },
-      { header: 'JAM MULAI', width: 12 },
-      { header: 'JAM SELESAI', width: 12 },
+      { header: 'NAMA PEKERJA', width: 22 },
+      { header: 'JAM MULAI', width: 13 },
+      { header: 'JAM SELESAI', width: 13 },
       { header: 'DURASI', width: 14 },
-      { header: 'AKTIVITAS / CATATAN KERJA', width: 32 },
-      { header: 'FOTO MULAI (BESAR)', width: 38 },
-      { header: 'FOTO PROGRESS (BESAR)', width: 38 },
-      { header: 'FOTO SELESAI (BESAR)', width: 38 },
-      { header: 'BUKTI VIDEO', width: 26 },
+      { header: 'AKTIVITAS / CATATAN KERJA', width: 34 },
+      { header: 'FOTO MULAI (BESAR)', width: 48 },
+      { header: 'FOTO PROGRESS (BESAR)', width: 48 },
+      { header: 'FOTO SELESAI (BESAR)', width: 48 },
+      { header: 'BUKTI VIDEO REKAMAN', width: 34 },
       { header: 'STATUS', width: 14 }
     ];
 
@@ -105,7 +105,7 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
     for (let i = 0; i < sheetTasks.length; i++) {
       const task = sheetTasks[i];
       const row = worksheet.getRow(rowNum);
-      row.height = 210; // Ruang lapang & besar untuk foto
+      row.height = 270; // Ruang lapang & besar untuk foto
 
       const isEven = i % 2 === 0;
       const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
@@ -158,13 +158,14 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       stCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDone ? 'FFDCFCE7' : 'FFFEF3C7' } };
 
       // Sematkan Foto Mulai (Kolom 8)
-      if (task.startPhoto) {
-        const base64 = await resolveImageBase64(task.startPhoto);
+      const startPic = (task.startPhotos && task.startPhotos[0]) || task.startPhoto;
+      if (startPic) {
+        const base64 = await resolveImageBase64(startPic);
         if (base64) {
           const imgId = workbook.addImage({ base64: base64, extension: 'jpeg' });
           worksheet.addImage(imgId, {
-            tl: { col: 7 + 0.05, row: rowNum - 1 + 0.05 },
-            br: { col: 8 - 0.05, row: rowNum - 0.05 },
+            tl: { col: 7 + 0.03, row: rowNum - 1 + 0.03 },
+            br: { col: 8 - 0.03, row: rowNum - 0.03 },
             editAs: 'oneCell'
           });
         }
@@ -182,8 +183,8 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
         if (base64) {
           const imgId = workbook.addImage({ base64: base64, extension: 'jpeg' });
           worksheet.addImage(imgId, {
-            tl: { col: 8 + 0.05, row: rowNum - 1 + 0.05 },
-            br: { col: 9 - 0.05, row: rowNum - 0.05 },
+            tl: { col: 8 + 0.03, row: rowNum - 1 + 0.03 },
+            br: { col: 9 - 0.03, row: rowNum - 0.03 },
             editAs: 'oneCell'
           });
         }
@@ -193,13 +194,14 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       }
 
       // Sematkan Foto Selesai (Kolom 10)
-      if (task.finishPhoto) {
-        const base64 = await resolveImageBase64(task.finishPhoto);
+      const finishPic = (task.finishPhotos && task.finishPhotos[0]) || task.finishPhoto;
+      if (finishPic) {
+        const base64 = await resolveImageBase64(finishPic);
         if (base64) {
           const imgId = workbook.addImage({ base64: base64, extension: 'jpeg' });
           worksheet.addImage(imgId, {
-            tl: { col: 9 + 0.05, row: rowNum - 1 + 0.05 },
-            br: { col: 10 - 0.05, row: rowNum - 0.05 },
+            tl: { col: 9 + 0.03, row: rowNum - 1 + 0.03 },
+            br: { col: 10 - 0.03, row: rowNum - 0.03 },
             editAs: 'oneCell'
           });
         }
@@ -209,22 +211,33 @@ async function exportTasksToExcelClient(tasks, companyName = 'LAPORAN KERJA LAPA
       }
 
       // Bukti Video (Kolom 11)
-      const videoLink = task.videoUrl || 
+      let videoLink = task.videoUrl || 
         (task.progressPhotos && task.progressPhotos.find(p => p.videoUrl)?.videoUrl) || 
         task.finishVideo || task.startVideo;
 
       if (videoLink) {
+        let fullVideoUrl = videoLink;
+        if (videoLink.startsWith('/') && window.location && window.location.origin) {
+          fullVideoUrl = `${window.location.origin}${videoLink}`;
+        }
         row.getCell(11).value = {
-          text: '▶️ BUKA / PUTAR VIDEO',
-          hyperlink: videoLink
+          text: '🎬 KLIK DISINI UNTUK\nMEMUTAR VIDEO BUKTI\n(Klik Link)',
+          hyperlink: fullVideoUrl
         };
-        row.getCell(11).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2563EB' }, underline: true };
+        row.getCell(11).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1D4ED8' }, underline: true };
+        row.getCell(11).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFEFF6FF' }
+        };
+        row.getCell(11).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       } else {
-        row.getCell(11).value = '-';
+        row.getCell(11).value = '[Tidak Ada Video]';
         row.getCell(11).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
       }
 
       rowNum++;
+    }
     }
   }
 

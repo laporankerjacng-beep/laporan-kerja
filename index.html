@@ -230,6 +230,111 @@ main.main-content {
   line-height: 1.4;
 }
 
+/* Login Selfie Widget */
+.login-selfie-box {
+  background: #f8fafc;
+  border: 1.5px dashed var(--border-dark);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+  position: relative;
+}
+
+.login-selfie-preview {
+  width: 100%;
+  height: 160px;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+#loginSelfieVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  display: none;
+}
+
+#loginSelfieCanvas {
+  display: none;
+}
+
+#loginSelfieImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.login-selfie-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.login-selfie-placeholder .selfie-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+.login-selfie-controls {
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  background: #f1f5f9;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-selfie-action {
+  flex: 1;
+  padding: 0.45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: #ffffff;
+  color: var(--text-main);
+  transition: all 0.15s;
+}
+
+.btn-selfie-action:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-selfie-action.snap {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.btn-selfie-action.snap:hover {
+  background: var(--primary-hover);
+}
+
+.selfie-status-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(15,23,42,0.75);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  backdrop-filter: blur(4px);
+}
+
 .form-group {
   margin-bottom: 1.15rem;
 }
@@ -1304,6 +1409,7 @@ table.data-table tr:hover {
         <h2>Masuk Sistem</h2>
         <p class="subtitle">Sistem dokumentasi dan rekapitulasi pekerjaan operasional lapangan.</p>
 
+
         <!-- Form Login -->
         <form id="loginForm">
           <div class="form-group">
@@ -1500,17 +1606,13 @@ table.data-table tr:hover {
         </div>
 
         <div class="export-group">
-          <!-- Tombol Export Excel dengan Foto Tertanam -->
-          <button class="btn-export-excel" id="btnExportExcel" title="Download Excel dengan foto langsung di dalam sel">
-            <span>📥 Unduh Laporan Excel (.xlsx)</span>
-          </button>
-          
-          <button class="btn-settings" id="btnOpenWorkerManager" title="Kelola Akun & Kata Sandi Karyawan">
-            <span>👥 Kelola Karyawan</span>
+          <!-- Tombol Pengaturan Google Sheet (Admin & Superadmin) -->
+          <button class="btn-settings" id="btnOpenSettings" title="Pengaturan koneksi Google Spreadsheet">
+            <span>⚙️ Google Sheet</span>
           </button>
 
-          <button class="btn-settings" id="btnOpenSettings" title="Pengaturan Integrasi Cloud">
-            <span>⚙️ Cloud</span>
+          <button class="btn-settings" id="btnOpenWorkerManager" title="Kelola Akun & Kata Sandi Karyawan">
+            <span>👥 Kelola Karyawan</span>
           </button>
 
           <!-- Tombol Khusus Super Admin -->
@@ -1522,7 +1624,7 @@ table.data-table tr:hover {
 
       <div style="font-size: 0.78rem; color: var(--text-dim); padding: 0 4px; display: flex; align-items: center; gap: 6px;">
         <span>🕒</span>
-        <span><strong>Siklus Rekap Harian:</strong> Dari pukul 01:00 Pagi s/d 01:00 Pagi hari berikutnya. File unduhan harian tidak akan tumpang tindih.</span>
+        <span><strong>Siklus Rekap Harian:</strong> Dari pukul 01:00 Pagi s/d 01:00 Pagi hari berikutnya. Seluruh laporan pekerjaan & foto langsung tersinkron ke Google Spreadsheet.</span>
       </div>
 
       <!-- Tabel Rekapitulasi -->
@@ -1559,15 +1661,6 @@ table.data-table tr:hover {
   <div class="camera-overlay-modal" id="cameraModal" style="display: none;">
     <div class="camera-header">
       <span class="camera-stage-badge" id="cameraStageBadge">MULAI PEKERJAAN</span>
-      
-      <!-- Tombol Balik Kamera (Selfie / Belakang) -->
-      <button type="button" class="btn-flip-cam" id="btnFlipCamera" title="Tukar Kamera Depan (Selfie) atau Belakang">
-        🤳 Ke Kamera Depan (Selfie)
-      </button>
-
-      <div style="font-size: 0.76rem; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); padding: 2px 10px; border-radius: 9999px;" id="cameraActiveModeBadge">
-        📷 Mode: FOTO
-      </div>
       <button class="btn-close-camera" id="btnCloseCamera" title="Tutup Kamera">✕</button>
     </div>
 
@@ -1625,6 +1718,17 @@ table.data-table tr:hover {
         <div class="camera-multi-photos-strip" id="cameraMultiPhotoStrip">
           <!-- Thumbnail dimuat dinamis -->
         </div>
+      </div>
+
+      <!-- Preview Video Hasil Rekaman -->
+      <div class="camera-video-preview-container" id="cameraVideoPreviewContainer" style="display: none; width: 100%; max-width: 480px; background: rgba(15,23,42,0.75); border: 1px solid rgba(56,189,248,0.4); border-radius: 8px; padding: 0.5rem 0.75rem; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #38bdf8; font-weight: 600;">
+          <span style="font-size: 1.1rem;">📹</span>
+          <span id="cameraVideoStatusText">Video berhasil direkam</span>
+        </div>
+        <button type="button" id="btnDiscardVideo" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #fca5a5; padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+          🗑️ Ulangi
+        </button>
       </div>
 
       <!-- Shutter Row -->
@@ -1765,26 +1869,50 @@ table.data-table tr:hover {
        MODAL PENGATURAN GOOGLE DRIVE & SHEETS
        ========================================== -->
   <div class="modal-backdrop" id="settingsModal" style="display: none;">
-    <div class="modal-dialog">
+    <div class="modal-dialog" style="max-width: 600px;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
         <div>
-          <h3>Pengaturan Sinkronisasi Cloud</h3>
+          <h3>Pengaturan Integrasi Google Spreadsheet</h3>
           <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Konfigurasi integrasi dengan Google Spreadsheet & Google Drive kantor.
+            Otomatisasi pengiriman laporan dan foto ke Google Spreadsheet & Google Drive.
           </p>
         </div>
         <button type="button" id="btnCloseSettings" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--text-dim);">&times;</button>
       </div>
 
+      <!-- Status Sambungan Google Sheet -->
+      <div id="gasStatusBox" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: #166534;" id="gasStatusText">
+          <span>🟢</span>
+          <span>Google Sheet: Siap Dihubungkan</span>
+        </div>
+        <button type="button" id="btnTestGas" style="background: #10b981; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
+          🔔 Tes Kirim
+        </button>
+      </div>
+
       <form id="settingsForm">
         <div class="form-group">
-          <label for="settingCompanyName">Nama Perusahaan / Unit Kerja</label>
+          <label for="settingCompanyName">Nama Perusahaan / Judul Header Laporan</label>
           <input type="text" id="settingCompanyName" class="form-input" placeholder="contoh: PT. Nama Kantor" />
         </div>
 
         <div class="form-group">
-          <label for="settingGasUrl">URL Webhook Google Apps Script</label>
+          <label for="settingGasUrl">URL Webhook Google Apps Script (/exec)</label>
           <input type="url" id="settingGasUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" />
+          <small style="color: var(--text-muted); font-size: 0.76rem; display: block; margin-top: 4px;">
+            Masukkan URL Web App hasil deploy Apps Script dari Google Spreadsheet Anda.
+          </small>
+        </div>
+
+        <!-- Panduan Singkat 3 Langkah -->
+        <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.5; color: var(--text-main);">
+          <strong>📋 Panduan Hubungkan Google Spreadsheet:</strong>
+          <ol style="margin: 4px 0 0 1.2rem; padding: 0;">
+            <li>Buka Google Spreadsheet baru di browser Anda.</li>
+            <li>Klik menu <strong>Extensions > Apps Script</strong>, salin isi file <code>google-apps-script/Code.gs</code> lalu Paste di sana.</li>
+            <li>Klik <strong>Deploy > New deployment</strong> (Pilih <em>Web App</em>, Access: <em>Anyone</em>), lalu tempel URL <code>.../exec</code> di kolom atas.</li>
+          </ol>
         </div>
 
         <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">

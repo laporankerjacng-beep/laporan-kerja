@@ -37,8 +37,8 @@ db.initDatabase();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Static files (dukung folder public maupun jika di-upload di root)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -99,21 +99,26 @@ const storage = multer.diskStorage({
     cb(null, 'media-' + uniqueSuffix + ext);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
-// Helper untuk simpan dataUrl base64 menjadi file
+// Helper untuk simpan dataUrl base64 menjadi file (Mendukung Foto & Video segala codec)
 function saveBase64ToFile(dataUrl, prefix = 'foto') {
-  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
   try {
-    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) return null;
-    
-    const mimeType = matches[1];
-    const buffer = Buffer.from(matches[2], 'base64');
+    const base64Index = dataUrl.indexOf(';base64,');
+    if (base64Index === -1) return null;
+
+    const header = dataUrl.substring(5, base64Index).toLowerCase();
+    const base64Data = dataUrl.substring(base64Index + 8);
+    if (!base64Data) return null;
+
+    const buffer = Buffer.from(base64Data, 'base64');
     let ext = '.jpg';
-    if (mimeType.includes('png')) ext = '.png';
-    if (mimeType.includes('webm')) ext = '.webm';
-    if (mimeType.includes('mp4')) ext = '.mp4';
+    if (header.includes('png')) ext = '.png';
+    else if (header.includes('webm')) ext = '.webm';
+    else if (header.includes('mp4')) ext = '.mp4';
+    else if (header.includes('video')) ext = '.webm';
+    else if (header.includes('jpeg') || header.includes('jpg')) ext = '.jpg';
 
     const filename = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
     const filePath = path.join(UPLOADS_DIR, filename);
@@ -494,6 +499,13 @@ app.post('/api/tasks/start', (req, res) => {
     };
 
     db.saveTask(newTask);
+    
+    // Auto-Sync ke Google Spreadsheet di latar belakang (jika webhook dikonfigurasi)
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+    syncTaskToGoogleSheets(newTask, baseUrl).catch(() => {});
+
     res.json({ success: true, message: 'Pekerjaan dimulai!', task: newTask });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -564,6 +576,13 @@ app.post('/api/tasks/progress', (req, res) => {
     }
 
     db.saveTask(task);
+
+    // Auto-Sync progress ke Google Spreadsheet
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+    syncTaskToGoogleSheets(task, baseUrl).catch(() => {});
+
     res.json({ success: true, message: 'Progress berhasil didokumentasikan!', task });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -645,6 +664,13 @@ app.post('/api/tasks/complete', (req, res) => {
     }
 
     db.saveTask(task);
+
+    // Auto-Sync saat pekerjaan selesai ke Google Spreadsheet
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+    syncTaskToGoogleSheets(task, baseUrl).catch(() => {});
+
     res.json({ success: true, message: 'Pekerjaan selesai & tercatat rapi!', task });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -718,11 +744,16 @@ app.get('/api/tasks/export-excel', async (req, res) => {
       }
     }
 
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+
     const settings = db.getSettings();
     const excelBuffer = await generateDailyExcelReport(tasks, {
       companyName: settings.companyName,
       workerFilter: workerName !== 'all' ? workerName : null,
-      dateFilter: `${dateLabel} (01:00 s/d 01:00)`
+      dateFilter: `${dateLabel} (01:00 s/d 01:00)`,
+      baseUrl: baseUrl
     });
 
     const filename = `Laporan_Kerja_${workerName || 'Semua'}_${dateLabel}_01.00-01.00.xlsx`;
@@ -748,33 +779,39 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true, settings: updated });
 });
 
-// Proxy Kirim Data ke Google Apps Script Webhook
-app.post('/api/tasks/sync-gdrive', async (req, res) => {
+// Helper: Sinkronkan 1 Tugas ke Google Apps Script (Google Spreadsheet)
+async function syncTaskToGoogleSheets(task, originUrl) {
   try {
-    const { taskId } = req.body;
     const settings = db.getSettings();
-    if (!settings.gasWebhookUrl) {
-      return res.status(400).json({ error: 'URL Google Apps Script Webhook belum dikonfigurasi di Pengaturan!' });
-    }
-
-    const task = db.getTaskById(taskId);
-    if (!task) {
-      return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
-    }
+    if (!settings.gasWebhookUrl) return false;
 
     // Helper konversi file lokal ke base64
     const fileToBase64 = (relPath) => {
       if (!relPath) return null;
+      if (typeof relPath === 'string' && relPath.startsWith('data:image')) {
+        const idx = relPath.indexOf(';base64,');
+        return idx !== -1 ? relPath.substring(idx + 8) : null;
+      }
       try {
-        const full = path.join(__dirname, relPath.replace(/^\//, ''));
+        const cleanRel = String(relPath).replace(/^[\\\/]+/, '');
+        const full = path.join(__dirname, cleanRel);
         if (fs.existsSync(full)) {
           return fs.readFileSync(full, { encoding: 'base64' });
         }
       } catch (e) {
-        console.warn('Gagal membaca file untuk gdrive:', e);
+        console.warn('Gagal membaca file foto untuk sync:', e);
       }
       return null;
     };
+
+    let videoFullUrl = task.videoUrl || task.finishVideo || task.startVideo || '';
+    if (videoFullUrl && videoFullUrl.startsWith('/') && originUrl) {
+      videoFullUrl = `${originUrl}${videoFullUrl}`;
+    }
+
+    const startPic = (task.startPhotos && task.startPhotos[0]) || task.startPhoto;
+    const finishPic = (task.finishPhotos && task.finishPhotos[0]) || task.finishPhoto;
+    const progPic = task.progressPhotos && task.progressPhotos[0] ? (task.progressPhotos[0].photoUrl || task.progressPhotos[0]) : null;
 
     const payload = {
       workerName: task.workerName,
@@ -785,25 +822,143 @@ app.post('/api/tasks/sync-gdrive', async (req, res) => {
       endTime: task.endTime,
       durationMinutes: task.durationMinutes,
       status: task.status,
-      startPhotoBase64: fileToBase64(task.startPhoto),
-      progressPhotoBase64: task.progressPhotos && task.progressPhotos[0] ? fileToBase64(task.progressPhotos[0].photoUrl) : null,
-      finishPhotoBase64: fileToBase64(task.finishPhoto)
+      startPhotoBase64: fileToBase64(startPic),
+      progressPhotoBase64: fileToBase64(progPic),
+      finishPhotoBase64: fileToBase64(finishPic),
+      videoUrl: videoFullUrl
     };
 
-    // Kirim via fetch ke Webhook Google Apps Script
     const response = await fetch(settings.gasWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      redirect: 'follow'
     });
 
-    const result = await response.json().catch(() => ({ status: 'success' }));
+    const text = await response.text();
     task.gdriveSynced = true;
     db.saveTask(task);
-
-    res.json({ success: true, message: 'Berhasil tersinkronisasi ke Google Drive & Google Sheets!', result });
+    console.log(`[Google Sheets] Sinkronisasi ${task.id} sukses:`, text.substring(0, 80));
+    return true;
   } catch (err) {
-    res.status(500).json({ error: 'Gagal sinkronisasi Google Drive: ' + err.message });
+    console.warn(`[Google Sheets] Gagal sinkronisasi ${task.id}:`, err.message);
+    return false;
+  }
+}
+
+// Proxy Kirim Data ke Google Apps Script Webhook (Single Task)
+app.post('/api/tasks/sync-gdrive', async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    const task = db.getTaskById(taskId);
+    if (!task) return res.status(404).json({ error: 'Pekerjaan tidak ditemukan!' });
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+
+    const ok = await syncTaskToGoogleSheets(task, baseUrl);
+    if (!ok) {
+      return res.status(400).json({ error: 'Gagal mengirim data. Pastikan URL Webhook Google Sheet sudah diisi di menu Cloud.' });
+    }
+    res.json({ success: true, message: 'Berhasil tersinkronisasi ke Google Spreadsheet!', task });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal: ' + err.message });
+  }
+});
+
+// Kirim Semua Data Tugas ke Google Sheets (Bulk / Manual Sync dari Admin Dashboard)
+app.post('/api/tasks/sync-all-sheets', async (req, res) => {
+  try {
+    const settings = db.getSettings();
+    if (!settings.gasWebhookUrl) {
+      return res.status(400).json({ 
+        error: 'URL Webhook Google Apps Script belum diisi! Silakan klik tombol ⚙️ Cloud untuk memasukkan URL Webhook Google Sheet.' 
+      });
+    }
+
+    const { date, workerName } = req.body;
+    let tasks = db.getTasks();
+
+    if (workerName && workerName !== 'all') {
+      tasks = tasks.filter(t => (t.workerName || '').toLowerCase() === workerName.toLowerCase());
+    }
+
+    if (date && date !== 'all') {
+      const bounds = getOperationalDayBounds(date);
+      if (bounds) {
+        tasks = tasks.filter(t => {
+          if (t.startTimestamp) {
+            return t.startTimestamp >= bounds.startMs && t.startTimestamp < bounds.endMs;
+          }
+          return t.date === date || t.date === bounds.dateFormatted;
+        });
+      } else {
+        tasks = tasks.filter(t => t.date === date);
+      }
+    }
+
+    if (tasks.length === 0) {
+      return res.status(400).json({ error: 'Tidak ada data pekerjaan untuk dikirim ke Google Sheets.' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host') || `localhost:${PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+
+    let successCount = 0;
+    for (const t of tasks) {
+      const ok = await syncTaskToGoogleSheets(t, baseUrl);
+      if (ok) successCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Berhasil mengirim ${successCount} dari ${tasks.length} laporan ke Google Sheets!`,
+      total: tasks.length,
+      synced: successCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal mengirim ke Google Sheets: ' + err.message });
+  }
+});
+
+// Tes Koneksi Webhook Google Apps Script Langsung dari Pengaturan
+app.post('/api/tasks/test-gas', async (req, res) => {
+  try {
+    const { url } = req.body;
+    const targetUrl = url || db.getSettings().gasWebhookUrl;
+    if (!targetUrl) {
+      return res.status(400).json({ error: 'Masukkan URL Webhook Google Apps Script terlebih dahulu!' });
+    }
+
+    const testPayload = {
+      workerName: 'Uji Coba Sistem',
+      date: new Date().toLocaleDateString('id-ID'),
+      taskName: 'Tes Koneksi Google Sheet',
+      notes: 'Koneksi dari web app berhasil terhubung & siap digunakan!',
+      startTime: '08:00',
+      endTime: '08:30',
+      durationMinutes: 30,
+      status: 'completed',
+      videoUrl: ''
+    };
+
+    const gasRes = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testPayload),
+      redirect: 'follow'
+    });
+
+    const text = await gasRes.text();
+    res.json({
+      success: true,
+      message: 'Koneksi ke Google Apps Script berhasil! Baris data tes telah berhasil masuk ke Google Sheet Anda.',
+      rawResponse: text
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal menghubungi Google Sheet: ' + err.message });
   }
 });
 

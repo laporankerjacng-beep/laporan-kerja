@@ -24,13 +24,32 @@ async function generateDailyExcelReport(tasks, options = {}) {
     day: 'numeric'
   });
 
-  // Helper untuk menambahkan gambar aman ke sel
+  // Helper untuk menambahkan gambar aman ke sel (Mendukung File Lokal & Base64 Data URL)
   function tryAddImageToCell(worksheet, filePath, colIndex, rowIndex) {
     if (!filePath) return false;
     try {
-      // Periksa path absolut lokal atau relatif
+      // Kasus 1: Base64 Data URL
+      if (typeof filePath === 'string' && filePath.startsWith('data:image')) {
+        const base64Index = filePath.indexOf(';base64,');
+        if (base64Index !== -1) {
+          const base64Data = filePath.substring(base64Index + 8);
+          const ext = filePath.includes('png') ? 'png' : 'jpeg';
+          const imageId = workbook.addImage({
+            base64: base64Data,
+            extension: ext
+          });
+          worksheet.addImage(imageId, {
+            tl: { col: colIndex - 1 + 0.03, row: rowIndex - 1 + 0.03 },
+            br: { col: colIndex - 0.03, row: rowIndex - 0.03 },
+            editAs: 'oneCell'
+          });
+          return true;
+        }
+      }
+
+      // Kasus 2: Path File Lokal di Server
       let fullPath = filePath;
-      const cleanRel = filePath.replace(/^[\\\/]+/, '');
+      const cleanRel = String(filePath).replace(/^[\\\/]+/, '');
       const localCandidate = path.join(__dirname, cleanRel);
       if (fs.existsSync(localCandidate)) {
         fullPath = localCandidate;
@@ -45,10 +64,10 @@ async function generateDailyExcelReport(tasks, options = {}) {
           extension: ext === 'png' ? 'png' : 'jpeg'
         });
 
-        // Sematkan gambar di dalam batas sel (dengan margin 4%)
+        // Sematkan gambar di dalam batas sel dengan margin 3% agar sangat besar & penuh
         worksheet.addImage(imageId, {
-          tl: { col: colIndex - 1 + 0.05, row: rowIndex - 1 + 0.05 },
-          br: { col: colIndex - 0.05, row: rowIndex - 0.05 },
+          tl: { col: colIndex - 1 + 0.03, row: rowIndex - 1 + 0.03 },
+          br: { col: colIndex - 0.03, row: rowIndex - 0.03 },
           editAs: 'oneCell'
         });
         return true;
@@ -78,7 +97,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
       fgColor: { argb: 'FF0F172A' } // Slate 900
     };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 34;
+    worksheet.getRow(1).height = 36;
 
     // Subtitle
     worksheet.mergeCells('A2:L2');
@@ -93,27 +112,27 @@ async function generateDailyExcelReport(tasks, options = {}) {
       fgColor: { argb: 'FF1E293B' } // Slate 800
     };
     subCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(2).height = 26;
+    worksheet.getRow(2).height = 28;
 
     // Baris kosong
     worksheet.getRow(3).height = 10;
 
-    // 2. Definisi Kolom Tabel (Header)
+    // 2. Definisi Kolom Tabel (Header Dibuat Besar & Jelas)
     const headerRow = worksheet.getRow(4);
-    headerRow.height = 30;
+    headerRow.height = 32;
 
     const columnsConfig = [
       { key: 'no', header: 'NO', width: 6 },
       { key: 'date', header: 'TANGGAL', width: 14 },
-      { key: 'workerName', header: 'NAMA PEKERJA', width: 20 },
-      { key: 'startTime', header: 'JAM MULAI', width: 12 },
-      { key: 'endTime', header: 'JAM SELESAI', width: 12 },
+      { key: 'workerName', header: 'NAMA PEKERJA', width: 22 },
+      { key: 'startTime', header: 'JAM MULAI', width: 13 },
+      { key: 'endTime', header: 'JAM SELESAI', width: 13 },
       { key: 'duration', header: 'DURASI', width: 14 },
-      { key: 'notes', header: 'AKTIVITAS / CATATAN KERJA', width: 32 },
-      { key: 'startPhoto', header: 'FOTO MULAI (BESAR)', width: 38 },
-      { key: 'progressPhoto', header: 'FOTO PROGRESS (BESAR)', width: 38 },
-      { key: 'finishPhoto', header: 'FOTO SELESAI (BESAR)', width: 38 },
-      { key: 'videoUrl', header: 'BUKTI VIDEO', width: 26 },
+      { key: 'notes', header: 'AKTIVITAS / CATATAN KERJA', width: 34 },
+      { key: 'startPhoto', header: 'FOTO MULAI (BESAR)', width: 48 },
+      { key: 'progressPhoto', header: 'FOTO PROGRESS (BESAR)', width: 48 },
+      { key: 'finishPhoto', header: 'FOTO SELESAI (BESAR)', width: 48 },
+      { key: 'videoUrl', header: 'BUKTI VIDEO REKAMAN', width: 34 },
       { key: 'status', header: 'STATUS', width: 14 }
     ];
 
@@ -151,7 +170,7 @@ async function generateDailyExcelReport(tasks, options = {}) {
 
     sheetTasks.forEach((task, index) => {
       const row = worksheet.getRow(currentRowNum);
-      row.height = 210; // Tinggi baris luas & besar agar foto tertanam tampil tajam, besar & jelas
+      row.height = 270; // Tinggi baris dibuat BESAR & LEGA (270pt) agar foto tampak besar, tajam & tidak terpotong!
 
       const isEven = index % 2 === 0;
       const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
@@ -223,9 +242,10 @@ async function generateDailyExcelReport(tasks, options = {}) {
         fgColor: { argb: isCompleted ? 'FFDCFCE7' : 'FFFEF3C7' }
       };
 
-      // 4. SEMATKAN GAMBAR ASLI LANGSUNG DI DALAM KOTAK SEL BESAR!
+      // 4. SEMATKAN GAMBAR ASLI DALAM UKURAN BESAR & JELAS
       // Foto Mulai -> Kolom 8 (H)
-      const hasStart = tryAddImageToCell(worksheet, task.startPhoto, 8, currentRowNum);
+      const startPic = (task.startPhotos && task.startPhotos[0]) || task.startPhoto;
+      const hasStart = tryAddImageToCell(worksheet, startPic, 8, currentRowNum);
       if (!hasStart) {
         row.getCell(8).value = '[Foto Mulai tidak ada]';
         row.getCell(8).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
@@ -243,25 +263,36 @@ async function generateDailyExcelReport(tasks, options = {}) {
       }
 
       // Foto Selesai -> Kolom 10 (J)
-      const hasFinish = tryAddImageToCell(worksheet, task.finishPhoto, 10, currentRowNum);
+      const finishPic = (task.finishPhotos && task.finishPhotos[0]) || task.finishPhoto;
+      const hasFinish = tryAddImageToCell(worksheet, finishPic, 10, currentRowNum);
       if (!hasFinish) {
         row.getCell(10).value = isCompleted ? '[Foto Selesai tidak ada]' : '[Belum Selesai]';
         row.getCell(10).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
       }
 
-      // Bukti Video -> Kolom 11 (K)
-      const videoLink = task.videoUrl || 
+      // Bukti Video -> Kolom 11 (K) dibuat BESAR & JELAS dengan Link Absolut
+      let videoLink = task.videoUrl || 
         (task.progressPhotos && task.progressPhotos.find(p => p.videoUrl)?.videoUrl) || 
         task.finishVideo || task.startVideo;
 
       if (videoLink) {
+        let fullVideoUrl = videoLink;
+        if (videoLink.startsWith('/') && options.baseUrl) {
+          fullVideoUrl = `${options.baseUrl}${videoLink}`;
+        }
         row.getCell(11).value = {
-          text: '▶️ BUKA / PUTAR VIDEO',
-          hyperlink: videoLink
+          text: '🎬 KLIK DISINI UNTUK\nMEMUTAR VIDEO BUKTI\n(Klik Link)',
+          hyperlink: fullVideoUrl
         };
-        row.getCell(11).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2563EB' }, underline: true };
+        row.getCell(11).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1D4ED8' }, underline: true };
+        row.getCell(11).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFEFF6FF' } // Lembut biru
+        };
+        row.getCell(11).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       } else {
-        row.getCell(11).value = '-';
+        row.getCell(11).value = '[Tidak Ada Video]';
         row.getCell(11).font = { size: 9, italic: true, color: { argb: 'FF94A3B8' } };
       }
 
